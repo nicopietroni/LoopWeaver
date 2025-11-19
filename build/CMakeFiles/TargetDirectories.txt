@@ -1,0 +1,3 @@
+/Users/134750/Desktop/00_GeoProjects/LoopWeaver/build/CMakeFiles/loop_weaver.dir
+/Users/134750/Desktop/00_GeoProjects/LoopWeaver/build/CMakeFiles/edit_cache.dir
+/Users/134750/Desktop/00_GeoProjects/LoopWeaver/build/CMakeFiles/rebuild_cache.dir
