@@ -1,4 +1,5 @@
 // including external gui and GL stuff
+#define DSAVE_STATUS_REMOVE
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -38,13 +39,17 @@
 #include <smooth_cross_field.h>
 
 // including FieldGraph Stuff
+#include "loopweaver/curve_solver_interface.h"
 #include <field_graph/graph.h>
+#include <field_graph/mesh_preprocess.h>
 #include <field_graph/patch_decomposer.h>
 #include <field_graph/patch_managing.h>
+#include <field_graph/patch_optimize.h>
 #include <field_graph/path_functions.h>
 #include <field_graph/path_sampling.h>
-#include <field_graph/patch_optimize.h>
 #include <field_graph/refine_for_tracing.h>
+
+#include "loopweaver/loop_reconstruction_condition.h"
 #include <hausdorff.h>
 #include <mesh_create.h>
 #include <mesh_subdivide.h>
@@ -66,10 +71,12 @@ int DrawColorMode = 0;
 int OldDrawColorMode = -1;
 
 bool showMesh = true;
+bool showResult = false;
 bool showCross = true;
 bool showSing = true;
 bool has_remeshed = false;
-
+bool has_paths = false;
+bool has_result = false;
 bool showBoundaries = false;
 // bool showSolved = false;
 bool ShowSymmPlane = false;
@@ -94,6 +101,11 @@ std::vector<Geo::Point3<ScalarType>> VertNormals;
 std::vector<std::vector<int>> NextF, NextE;
 Geo::Box3<ScalarType> MeshBox;
 
+std::vector<Geo::Point3<ScalarType>> SolvedVertPos;
+std::vector<std::vector<int>> SolvedConnectivity;
+std::vector<Geo::Point3<ScalarType>> SolvedFaceNormals;
+std::vector<Geo::Point3<ScalarType>> SolvedVertNormals;
+
 // cross field data
 bool processForTracing = true;
 std::vector<Field::CrossF<ScalarType>> VertCurv;
@@ -101,7 +113,12 @@ std::vector<Field::CrossF<ScalarType>> FaceCurv;
 bool has_cross_field = false;
 int KernelNring = 3;
 ScalarType minQCrossVert, maxQCrossVert;
+ScalarType minQCrossFace, maxQCrossFace;
 std::vector<int> SingIndex, SingValue;
+std::vector<int> FeatureSingIndex, FeatureSingValue;
+std::vector<std::pair<int, int>> RemainingF;
+std::vector<int> NewBorder;
+
 FieldSmoothParam<ScalarType> SParam;
 
 // Interface values
@@ -119,11 +136,15 @@ float maxAngle = 45.f;
 int diffuse_step = 1;
 bool match_sing_cond = true;
 bool single_sing_cond = true;
+bool loop_recon_cond = true;
 int MinSides = 3;
 int MaxSides = 6;
 
 int SmoothPathSteps = 20;
-//std::vector<Geo::TJunction> TJunctions;
+
+ScalarType maxErrRatio = 0.05;
+ScalarType OldmaxErrRatio = maxErrRatio;
+// std::vector<Geo::TJunction> TJunctions;
 
 Geo::TracingGraph<ScalarType> TGraph(Geo::GT_CrossField);
 
@@ -135,8 +156,48 @@ Geo::PatchManaging<ScalarType> PatchM(VertPos, Connectivity, VertCurv, TGraph,
 
 Geo::PatchDecomposer<ScalarType> PDeco(PatchM, PathSampl, VertCurv, FaceCurv);
 
-Geo::Point3<ScalarType> mesh_color(0.9, 0.9, 0.9);
-Geo::Point3<ScalarType> solved_mesh_color(0.79, 0.9, 0.87);
+Geo::Point3<ScalarType> mesh_color(0.4, 0.8, 0.66);
+Geo::Point3<ScalarType> solved_mesh_color(0.95, 0.79, 0.87);
+
+// error and the rest
+std::vector<ScalarType> ErrorTarget;
+std::vector<ScalarType> ErrorReconstructed;
+std::vector<Geo::Point3<ScalarType>> FaceColorTarget;
+std::vector<Geo::Point3<ScalarType>> FaceColorReconstructed;
+
+//the condition used for loop reconstruction
+LoopReconstructionCondition<ScalarType> LoopCond(SolvedVertPos, SolvedConnectivity);
+
+void InitDefaultParameters() {
+  PathSampl.NumSamples=3000;
+  PDeco.dynamic_updates=true;
+}
+
+void UpdateFaceColor() {
+  // if no error computed force use constant color
+  if (ErrorTarget.size() != Connectivity.size())
+    DrawColorMode = 0;
+  if (ErrorTarget.size() != Connectivity.size())
+    DrawColorMode = 0;
+
+  OldDrawColorMode = DrawColorMode;
+
+  if (DrawColorMode == 0) {
+    FaceColorTarget =
+        std::vector<Geo::Point3<ScalarType>>(Connectivity.size(), mesh_color);
+    FaceColorReconstructed = std::vector<Geo::Point3<ScalarType>>(
+        SolvedConnectivity.size(), solved_mesh_color);
+    return;
+  }
+
+  if (DrawColorMode == 1) {
+    ScalarType MaxDistance = MeshBox.Diag() * maxErrRatio;
+    GetColorByScalar<ScalarType>(ErrorTarget, MaxDistance, 0, FaceColorTarget);
+    GetColorByScalar<ScalarType>(ErrorReconstructed, MaxDistance, 0,
+                                 FaceColorReconstructed);
+    return;
+  }
+}
 
 void InitSymmetryPlane() {
   Geo::Point3<ScalarType> Center(0, 0, 0); // MeshBox.Center();
@@ -177,6 +238,17 @@ void ReassembleMesh() {
 
   ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
   Geo::getFFAdjacency(Connectivity, NextF, NextE);
+
+  //then mirror the solved mesh
+  std::set<int> MiddleV1;
+  MirrorMesh<ScalarType>(SolvedVertPos, SolvedConnectivity, SymmetryPlane, MiddleV);
+  ComputeNormals(SolvedVertPos, SolvedConnectivity,SolvedFaceNormals, SolvedVertNormals);
+  //append errors to itself
+  ErrorReconstructed.insert(ErrorReconstructed.end(), ErrorReconstructed.begin(),
+                                 ErrorReconstructed.end());
+  ErrorTarget.insert(ErrorTarget.end(), ErrorTarget.begin(),
+                                 ErrorTarget.end());
+  UpdateFaceColor();
 }
 
 void InitFieldByCurvature() {
@@ -260,6 +332,19 @@ void InitConditions() {
 
   PDeco.AddCondition(new Geo::SingleBoundaryCondition<ScalarType>());
   PDeco.AddCondition(new Geo::DiskLikeCondition<ScalarType>());
+  if (loop_recon_cond)
+  {
+    
+    ScalarType MaxAbsErr = MeshBox.Diag() * maxErrRatio;
+    LoopCond.Init(MaxAbsErr);
+    LoopCond.match_sing_cond = match_sing_cond;
+    LoopCond.single_sing_cond = single_sing_cond;
+    LoopCond.MinSides = MinSides;
+    LoopCond.MaxSides = MaxSides;
+    PDeco.AddCondition(&LoopCond);
+    //this condition now is sufficient
+    return;
+  }
 
   PDeco.AddCondition(new Geo::SelfConnectingPatchCondition<ScalarType>());
   if (single_sing_cond)
@@ -270,6 +355,7 @@ void InitConditions() {
   if ((MinSides > 0) || (MaxSides > 0)) {
     PDeco.AddCondition(new Geo::NumSidesCondition<ScalarType>());
   }
+
 }
 
 void InitPatches() {
@@ -291,18 +377,13 @@ void InitPatches() {
 
   // then check all patches and saved the unsolved ones
   PatchM.CheckConsistentData();
+
+  PDeco.AddFeaturesAsPaths(TGraph, VertCurv, RemainingF, NewBorder);
+
   PDeco.UpdateAllUnsolvedPatches();
 }
 
-void SmoothPaths() {
-  Geo::Local_Param_Smooth<ScalarType>::UVSmoothParam UVP;
-  std::vector<std::vector<int>> VertPaths;
-  PathSampl.GetVertexSelectedPaths(VertPaths);
-  // Geo::PathFunctions<ScalarType>::FindTJunctions(VertPaths, TJunctions);
-
-  Geo::PatchOptimize<ScalarType>::SmoothPaths(VertPos, Connectivity, VertPaths,
-                                              Features,0.5,SmoothPathSteps);
-  
+void UpdateMeshFieldNormals() {
   ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
 
   // update cross F poistion
@@ -316,6 +397,18 @@ void SmoothPaths() {
 
   PatchM.GetAllSideGlobalEdges(Boundary);
   PatchM.GetAllCorners(BoundaryVerts);
+}
+
+void SmoothPaths() {
+  Geo::Local_Param_Smooth<ScalarType>::UVSmoothParam UVP;
+  std::vector<std::vector<int>> VertPaths;
+  PathSampl.GetVertexSelectedPaths(VertPaths);
+  // Geo::PathFunctions<ScalarType>::FindTJunctions(VertPaths, TJunctions);
+
+  Geo::PatchOptimize<ScalarType>::SmoothPaths(VertPos, Connectivity, VertPaths,
+                                              Features, 0.5, SmoothPathSteps);
+
+  UpdateMeshFieldNormals();
 }
 
 void BatchDecompose() {
@@ -335,14 +428,14 @@ void BatchDecompose() {
   PatchM.WriteStats();
   PDeco.WriteStats();
 
-  SmoothPaths();
-  
+  //SmoothPaths();
+
   PatchM.GetAllSideGlobalEdges(Boundary);
   PatchM.GetAllCorners(BoundaryVerts);
 
   // UpdatePathFromDecomposer();
   showBoundaries = true;
-  // has_patch = true;
+  has_paths = true;
 }
 
 void SmoothField(bool iterative = false) {
@@ -379,11 +472,46 @@ void RefineForTracing() {
   has_remeshed = true;
 }
 
+void UpdateAfterRemesh() {
+  ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
+  Geo::getFFAdjacency(Connectivity, NextF, NextE);
+
+  InitCrossFieldQualityAsAnisotropy<ScalarType>(FaceCurv);
+
+  SetVertCrossFromFace(VertPos, Connectivity, VertNormals, FaceCurv, VertCurv);
+  InitCrossFieldQualityAsAnisotropy<ScalarType>(VertCurv);
+
+  Field::CrossF<ScalarType>::getMinMaxQ(FaceCurv, minQCrossVert, maxQCrossVert);
+
+  Field::CrossF<ScalarType>::getMinMaxQ(FaceCurv, minQCrossFace, maxQCrossFace);
+  // GetFaceSingularities(FaceCurv, VertPos, Connectivity,
+  //                      NextF, NextE, SingIndex, SingValue);
+
+  PatchM.SetSingularities(SingIndex, SingValue);
+  PatchM.SetFeatureSingularities(FeatureSingIndex, FeatureSingValue);
+  // UpdateColor();
+}
+
 void RefineForTracingConnectivity() {
+
+  int min_sing_distance = 1;
+
   Geo::RefineForTracing<ScalarType>::RefineForConnection(VertPos, Connectivity,
                                                          FaceCurv, Features);
   Geo::getFFAdjacency(Connectivity, NextF, NextE);
   ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
+
+  Geo::TracingPreprocess<ScalarType>::RefineCloseSingFaces(
+      VertPos, Connectivity, FaceCurv, Features, SingIndex, min_sing_distance);
+
+  UpdateAfterRemesh();
+
+  Geo::TracingPreprocess<ScalarType>::SplitCornerFeatures(
+      VertPos, Connectivity, VertCurv, FaceCurv, Features, RemainingF,
+      SingIndex, SingValue, FeatureSingIndex, FeatureSingValue, NewBorder);
+
+  // Geo::TracingPreprocess<ScalarType>::DesambiguateCoincidentBorders(
+  //     VertPos, Connectivity, &ModSameBVert, &ModSameBOrigPos);
 }
 
 void BatchProcessCurv() {
@@ -400,6 +528,8 @@ void BatchProcessCurv() {
 
   SetVertCrossFromFace(VertPos, Connectivity, VertNormals, FaceCurv, VertCurv);
   InitCrossFieldQualityAsAnisotropy<ScalarType>(VertCurv);
+
+  UpdateFaceColor();
 }
 
 bool LoadMesh(const std::string &path) {
@@ -416,6 +546,7 @@ bool LoadMesh(const std::string &path) {
     Connectivity0 = Connectivity;
 
     InitSymmetryPlane();
+    UpdateFaceColor();
     return true;
   } else {
     std::cout << "Mesh not loaded" << std::endl;
@@ -447,7 +578,7 @@ bool LoadField(const std::string &path) {
                          SingIndex, SingValue);
 
     PatchM.SetSingularities(SingIndex, SingValue);
-    // PatchM.SetFeatureSingularities(FeatureSingIndex, FeatureSingValue);
+    PatchM.SetFeatureSingularities(FeatureSingIndex, FeatureSingValue);
     return true;
   } else {
     std::cout << "Field not loaded" << std::endl;
@@ -560,7 +691,7 @@ void SetRenderBar() {
 
   if (ImGui::CollapsingHeader("MESH")) {
     ImGui::Checkbox("Draw Original", &showMesh);
-
+    ImGui::Checkbox("Draw Result", &showResult);
     ImGui::Checkbox("Draw Boundaries", &showBoundaries);
     static const char *itemsDrawMode[] = {"Smooth", "Flat", "Smooth Wire",
                                           "Flat Wire"};
@@ -568,9 +699,14 @@ void SetRenderBar() {
     ImGui::Combo("Mesh Mode", &DrawMeshMode, itemsDrawMode,
                  IM_ARRAYSIZE(itemsDrawMode));
 
-    static const char *ItemsColorMode[] = {"Constant", "Error", "Distortion"};
+    static const char *ItemsColorMode[] = {"Constant", "Error"};
     ImGui::Combo("Color Mode", &DrawColorMode, ItemsColorMode,
                  IM_ARRAYSIZE(ItemsColorMode));
+
+    if (OldDrawColorMode != DrawColorMode) {
+      UpdateFaceColor();
+    }
+    OldDrawColorMode = DrawColorMode;
   }
 
   if (ImGui::CollapsingHeader("FIELD")) {
@@ -581,6 +717,25 @@ void SetRenderBar() {
     ImGui::Checkbox("Show Boundaries", &showBoundaries);
   }
   ImGui::End();
+}
+void FinalExtractSurface() {
+  if (has_paths) {
+    CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
+    Res = CurveSolverInterface<ScalarType>::ExtractSurface(
+        PatchM, SolvedVertPos, SolvedConnectivity,false);
+        
+    ErrorTarget = Res.TargetFDist;
+    ErrorReconstructed = Res.RemeshedFDist;
+
+    ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
+                   SolvedVertNormals);
+
+    UpdateMeshFieldNormals();
+    has_result = true;
+    showResult = true;
+    DrawColorMode = 1;
+    UpdateFaceColor();
+  }
 }
 
 void SetToolBar() {
@@ -593,7 +748,26 @@ void SetToolBar() {
                      ImGuiSliderFlags_AlwaysClamp);
   SParam.GlobalSmoothVal = GlobalSmoothVal;
 
-  ImGui::Checkbox("Single Patch Singularities", &single_sing_cond);
+  // ImGui::Checkbox("Single Patch Singularities", &single_sing_cond);
+  ImGui::Separator();
+  ImGui::InputInt("Sampling Density", &PathSampl.NumSamples);
+  ImGui::Checkbox("Dynamic Update", &PDeco.dynamic_updates);
+
+  if (ImGui::CollapsingHeader("Conditions",ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::Checkbox("Loop Reconstruction Condition", &loop_recon_cond);
+    float maxErrRatiof = maxErrRatio;
+    ImGui::SliderFloat("Reconstrution Error", &maxErrRatiof, 0.01f, 0.1f,
+                       "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    maxErrRatio = maxErrRatiof;
+    if (OldmaxErrRatio != maxErrRatio) {
+      UpdateFaceColor();
+      OldmaxErrRatio = maxErrRatio;
+    }
+    ImGui::Checkbox("Single patch sing", &single_sing_cond);
+    ImGui::Checkbox("Match sing values", &match_sing_cond);
+    ImGui::InputInt("Min Sides", &MinSides);
+    ImGui::InputInt("Max Sides", &MaxSides);
+  }
 
   if (ImGui::Button("Batch Process")) {
     VertPos = VertPos0;
@@ -615,6 +789,11 @@ void SetToolBar() {
 
     showCross = false;
     showSing = false;
+    has_paths = true;
+
+    SmoothPaths();
+
+    FinalExtractSurface();
 
     if (UseSymmetry)
       ReassembleMesh();
@@ -657,13 +836,7 @@ void SetToolBar() {
   if (ImGui::CollapsingHeader("Decomposition")) {
 
     if (has_cross_field) {
-      ImGui::InputInt("Density", &PathSampl.NumSamples);
-      ImGui::Checkbox("Dynamic Update", &PDeco.dynamic_updates);
-      ImGui::Checkbox("Single patch sing", &single_sing_cond);
-      ImGui::Checkbox("Match sing values", &match_sing_cond);
-      ImGui::InputInt("Min Sides", &MinSides);
-      ImGui::InputInt("Max Sides", &MaxSides);
-      
+
       ImGui::InputInt("Smooth Path Steps", &SmoothPathSteps, 1);
       if (SmoothPathSteps < 0)
         SmoothPathSteps = 0;
@@ -681,7 +854,11 @@ void SetToolBar() {
         SmoothPaths();
     }
   }
-  
+  if (has_paths) {
+    if (ImGui::Button("Extract Surface")) {
+      FinalExtractSurface();
+    }
+  }
   ImGui::Separator();
   if (ImGui::CollapsingHeader("Save")) {
     if (ImGui::Button("SAVE ALL")) {
@@ -769,12 +946,40 @@ void GLDrawMesh() {
   int sizeBoundariesDef = sizeBoundariesInput;
   int sizeFiexedVDef = sizeBoundariesVertsInput;
 
-  GLDraw::glColor(mesh_color);
-  if (showMesh) {
-    GLDraw::DrawSurfaceMesh<ScalarType>(VertPos, Connectivity, FaceNormals,
-                                        VertNormals, DrawSurface, wire,
-                                        smoothshade, false, GLDraw::TRTriangle);
+  // DRAW PATCHES
+  if (showBoundaries) {
+    GLDraw::GLDrawEdges<ScalarType>(VertPos, Boundary, sizeBoundariesInput,
+                                    Geo::Point3<ScalarType>(0, 0, 0));
 
+    // GLDraw::DrawVertices(VertPos, BoundaryVerts,
+    //                      Geo::Point3<ScalarType>(1, 0, 0),
+    //                      sizeBoundariesVertsInput);
+  }
+
+  if (showResult) {
+    // GLDraw::glColor(solved_mesh_color);
+    assert(FaceColorReconstructed.size() == SolvedConnectivity.size());
+    GLDraw::DrawSurfaceMesh<ScalarType>(
+        SolvedVertPos, SolvedConnectivity, SolvedFaceNormals, SolvedVertNormals,
+        DrawSurface, wire, smoothshade, false, GLDraw::TRTriangle,
+        &FaceColorReconstructed);
+  }
+  if (showMesh) {
+
+    GLDraw::glColor(mesh_color);
+    if ((showResult) && (has_result)) {
+      glColor4f(.5f, 1.f, .8f, .3f);
+
+      bool useBlend = showResult;
+      GLDraw::DrawSurfaceMesh<ScalarType>(
+          VertPos, Connectivity, FaceNormals, VertNormals, DrawSurface, wire,
+          smoothshade, true, GLDraw::TRTriangle);
+    } else {
+      assert(FaceColorTarget.size() == Connectivity.size());
+      GLDraw::DrawSurfaceMesh<ScalarType>(
+          VertPos, Connectivity, FaceNormals, VertNormals, DrawSurface, wire,
+          smoothshade, false, GLDraw::TRTriangle, &FaceColorTarget);
+    }
     GLDraw::GLDrawBorders<ScalarType>(VertPos, Connectivity, NextF, 20);
   }
   // // DRAW THE FEATURES
@@ -783,16 +988,6 @@ void GLDrawMesh() {
 
   // GLDraw::DrawVertices(VertPos, Corners, Geo::Point3<ScalarType>(1, 0, 0),
   //                      sizeBoundariesVertsInput);
-
-  // DRAW PATCHES
-  if (showBoundaries) {
-    GLDraw::GLDrawEdges<ScalarType>(VertPos, Boundary, sizeBoundariesInput,
-                                    Geo::Point3<ScalarType>(0, 0, 1));
-
-    GLDraw::DrawVertices(VertPos, BoundaryVerts,
-                         Geo::Point3<ScalarType>(0, 1, 0),
-                         sizeBoundariesVertsInput);
-  }
 
   if (ShowSymmPlane)
     GLDraw::glDrawPlane<ScalarType>(SymmetryPlane, MeshBox.Diag() / 2);
@@ -812,6 +1007,7 @@ void GLDrawMesh() {
 }
 
 int main(int argc, char *argv[]) {
+  InitDefaultParameters();
 
   if (argc < 2) {
     std::cout << "You should pass at least a mesh" << std::endl;
