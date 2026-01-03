@@ -41,6 +41,9 @@ class LoopReconstructionCondition : public Geo::PatchCondition<ScalarType> {
 public:
   std::vector<std::pair<int, int>> &Features;
   bool writeDebug;
+  
+  typename CurveSolverInterface<ScalarType>::ExtractParam Param;
+
   // int curr_step;
   // bool mirror;
 
@@ -174,8 +177,11 @@ public:
     if (writeDebug)
       std::cout << "EXTRACTING SURFACE" << std::endl;
     typename CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
+
+    Param.smooth_pdeco_steps = 20;
+    
     Res = CurveSolverInterface<ScalarType>::ExtractSurface(
-        PatchM, SolvedVertPos, SolvedFaces,Features);
+        PatchM, SolvedVertPos, SolvedFaces,Features, Param);
     assert(Res.TargetFDist.size() == PatchM.Faces.size());
     // assert(Res.RemeshedFDist.size()==SolvedFaces.size());
     if (writeDebug)
@@ -272,6 +278,7 @@ public:
           }
         }
       }
+      return true;
   }
 
   bool IsCorrectNormalPerc(const Geo::PatchManaging<ScalarType> &PatchM,
