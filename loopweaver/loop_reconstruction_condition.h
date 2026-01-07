@@ -59,6 +59,7 @@ public:
 
   bool match_sing_cond;
   bool single_sing_cond;
+  bool smooth_paths;
   // bool save_steps;
   int MinSides;
   int MaxSides;
@@ -76,9 +77,18 @@ public:
 
   virtual void UpdatePatchIndex(std::map<int, int> &PatchIdxRemap) override {
 
+    // std::cout << "Updating patch indices in LoopReconstructionCondition"
+    //           << std::endl;
+    // exit(0);
     for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
       int OldPatchIDx = DData.CurrSolvedPatchIndex[i];
-      assert(PatchIdxRemap.find(OldPatchIDx) != PatchIdxRemap.end());
+      
+      if (PatchIdxRemap.find(OldPatchIDx) == PatchIdxRemap.end())
+      {
+        std::cerr << "Error: Old patch index " << OldPatchIDx
+                  << " not found in remap." << std::endl;
+        exit(0);
+      }
       int NewPatchIDx = PatchIdxRemap[OldPatchIDx];
       DData.CurrSolvedPatchIndex[i] = NewPatchIDx;
     }
@@ -178,10 +188,20 @@ public:
       std::cout << "EXTRACTING SURFACE" << std::endl;
     typename CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
 
-    Param.smooth_pdeco_steps = 20;
-    
+    if (smooth_paths)
+      Param.smooth_pdeco_steps = 20;
+    else
+      Param.smooth_pdeco_steps = 0;
+
+    Param.PreviousSolvedConnectivity = DData.CurrSolvedFaces;
+    Param.PreviousSolvedVertPos = DData.CurrSolvedVertPos;
+    Param.PreviousSolvedPatchIndices = DData.CurrSolvedPatchIndex;
+    Param.only_updated_patches = false;
+
     Res = CurveSolverInterface<ScalarType>::ExtractSurface(
         PatchM, SolvedVertPos, SolvedFaces,Features, Param);
+
+    
     assert(Res.TargetFDist.size() == PatchM.Faces.size());
     // assert(Res.RemeshedFDist.size()==SolvedFaces.size());
     if (writeDebug)
@@ -199,6 +219,15 @@ public:
     DData.CurrSolvedVertPos = SolvedVertPos;
     DData.CurrSolvedFaces = SolvedFaces;
     DData.CurrSolvedPatchIndex = Res.RemeshedPatchIndex;
+
+    //consistency checks
+    for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
+      int IndexP = DData.CurrSolvedPatchIndex[i];
+      if (PatchM.isEmpty(IndexP)) {
+        std::cout << "ERROR: Skipping empty patch Test After Global " << IndexP << std::endl;
+        exit(0);
+      }
+    }
     return true;
   }
 
@@ -239,8 +268,9 @@ public:
     for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
       int IndexP = DData.CurrSolvedPatchIndex[i];
       if (PatchM.isEmpty(IndexP)) {
-        std::cout << "Skipping empty patch " << IndexP << std::endl;
-        exit(0);
+        std::cout << "WARNING: Skipping empty patch Dist Err " << IndexP << std::endl;
+        continue;
+        //exit(0);
       }
       if (DData.CurrSolvedPatchIndex[i] == IndexPatch) {
         ScalarType Err = DData.ErrorReconstructed[i];
@@ -268,8 +298,9 @@ public:
       for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
         int IndexP = DData.CurrSolvedPatchIndex[i];
         if (PatchM.isEmpty(IndexP)) {
-          std::cout << "Skipping empty patch " << IndexP << std::endl;
-          exit(0);
+          std::cout << "WARNING: Skipping empty patch Norm Error " << IndexP << std::endl;
+          continue;
+          //exit(0);
         }
         if (DData.CurrSolvedPatchIndex[i] == IndexPatch) {
           ScalarType Err = DData.ErrorNormReconstructed[i];
@@ -306,8 +337,9 @@ public:
       for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
         int IndexP = DData.CurrSolvedPatchIndex[i];
         if (PatchM.isEmpty(IndexP)) {
-          std::cout << "Skipping empty patch " << IndexP << std::endl;
-          exit(0);
+          std::cout << "WARNING: Skipping empty patch Norm Perc " << IndexP << std::endl;
+          continue;
+          //exit(0);
         }
         if (DData.CurrSolvedPatchIndex[i] == IndexPatch) {
           ScalarType Err = DData.ErrorNormReconstructed[i];
@@ -320,7 +352,7 @@ public:
       assert(numFaces1 > 0);
       ScalarType out_ratio1 =
           ScalarType(out_of_bound_faces1) / ScalarType(numFaces1);
-      if (out_ratio1 >= (1 - MaxNormErrPercent))
+      if (out_ratio1 >= (MaxNormErrPercent))
         return false;
 
     return true;
@@ -382,10 +414,12 @@ public:
 
     match_sing_cond = true;
     single_sing_cond = true;
+
     MinSides = 3;
     MaxSides = 6;
 
     writeDebug = false;
+    smooth_paths =false;
     // mirror =false;
     // curr_step=0;
     // save_steps=false;
