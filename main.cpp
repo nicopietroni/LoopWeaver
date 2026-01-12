@@ -232,6 +232,7 @@ void InitDefaultParam() {
   MPatchDeco.match_sing_cond = false;
   MPatchDeco.prefer_feature_features = false;
   MPatchDeco.split_removal = false;
+  CurveSolv.use_original_meshing = false;
 }
 
 void UpdateFaceColor() {
@@ -657,6 +658,7 @@ void FinalExtractSurface() {
     CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
     CurveSolv.smooth_pdeco_steps = 0;
     CurveSolv.save_patch_meshes = false;
+  
     // CurveSolv.only_updated_patches = false;
     CurveSolv.iteration = 10;
     CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
