@@ -309,6 +309,8 @@ public:
                                     RemeshedToTargetFaceMap,
                                     RemeshedToTargetBaryMap);
 
+    
+
     // compute the normals
     std::vector<Geo::Point3<ScalarType>> FaceResultNormals, FaceTargetNormals;
     std::vector<Geo::Point3<ScalarType>> VertResultNormals, VertTargetNormals;
@@ -378,9 +380,9 @@ public:
       Geo::Point3<ScalarType> NTarget = FaceTargetNormals[i];
       Geo::Point3<ScalarType> NResult = FaceResultNormals[faceIdx];
       ScalarType dist = (baryF - targetP).Norm();
-      TargetFDist.push_back(dist);
+      TargetFDist[i] = dist;
       ScalarType nErr = Geo::AngleDeg(NTarget, NResult);
-      TargetNErr.push_back(nErr);
+      TargetNErr[i] = nErr;
     }
   }
 
@@ -537,7 +539,7 @@ public:
       }
 
       
-      UpdateError(PManCopy.VertPos,PManCopy.Faces,PMan.PData.OriginalFaceToPatch);
+      UpdateError(TargetVertPos,TargetFaces,PMan.PData.OriginalFaceToPatch);
 
       PManCopy.VertPos = TargetVertPos;
       PManCopy.Faces = TargetFaces;

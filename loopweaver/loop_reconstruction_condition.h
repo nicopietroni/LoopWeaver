@@ -208,8 +208,9 @@ public:
 
     // Res = CurveSolverInterface<ScalarType>::ExtractSurface(
     //     PatchM, SolvedVertPos, SolvedFaces,Features, Param);
-    if (done_first_global_update)
-      CurveSolv.OnlyPatchIndices = PatchM.GetLastUpdatedPatches();
+    
+    // if (done_first_global_update)
+    //   CurveSolv.OnlyPatchIndices = PatchM.GetLastUpdatedPatches();
     
     bool success = CurveSolv.UpdateSolvedMesh(PatchM);
     
@@ -221,7 +222,7 @@ public:
       std::cout << "DONE!" << std::endl;
 
     //if (!Res.success) {
-    if (success) {
+    if (!success) {
       if (writeDebug)
         std::cout << "SURFACE EXTRACTION FAILED" << std::endl;
       return false;
@@ -387,15 +388,17 @@ public:
     assert(IndexPatch < PatchM.NumPatches());
 
     // in this case, we consider that if no error target was set, all in correct
+    
     if (DData.ErrorTarget.size() == 0)
       return true;
-
+    
     assert(DData.CurrSolvedVertPos.size() == SolvedVertPos.size());
-
+    
     if (AbsMaxErr > 0) {
       if (!IsCorrectDistanceError(PatchM, IndexPatch))
         return false;
     }
+    
     // check error norm
     if (MaxNormErr > 0) {
       if ((MaxNormErrPercent > 0)&&(MaxNormErrPercent < 1)) {

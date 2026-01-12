@@ -157,7 +157,7 @@ bool beier_error_cond = true;
 bool saved_last_screenshot = false;
 int SmoothPathSteps = 20;
 
-ScalarType maxErrRatio = 0.05;
+ScalarType maxErrRatio = 0.02;
 ScalarType OldmaxErrRatio = maxErrRatio;
 
 ScalarType maxNormAngle = 30;
@@ -236,18 +236,23 @@ void InitDefaultParam() {
 
 void UpdateFaceColor() {
   // if no error computed force use constant color
+  std::cout<<"Target size "<<ErrorTarget.size()<<" Connectivity size "<<Connectivity.size()<<std::endl;
+  std::cout<<"Reconstructed size "<<ErrorReconstructed.size()<<" SolvedConnectivity size "<<SolvedConnectivity.size()<<std::endl;
+    
+
   if (ErrorTarget.size() != Connectivity.size())
     DrawColorMode = 0;
-  if (ErrorTarget.size() != Connectivity.size())
+  if (ErrorReconstructed.size() != SolvedConnectivity.size())
     DrawColorMode = 0;
 
   if (ErrorNormTarget.size() != Connectivity.size())
     DrawColorMode = 0;
-  if (ErrorNormTarget.size() != Connectivity.size())
+  if (ErrorNormReconstructed.size() != SolvedConnectivity.size())
     DrawColorMode = 0;
 
   OldDrawColorMode = DrawColorMode;
 
+  std::cout << "Updating face color mode " << DrawColorMode << std::endl;
   if (DrawColorMode == 0) {
     FaceColorTarget =
         std::vector<Geo::Point3<ScalarType>>(Connectivity.size(), mesh_color);
@@ -657,10 +662,19 @@ void FinalExtractSurface() {
     CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
 
     ErrorTarget = CurveSolv.TargetFDist;
+    std::cout << "Target FDist size: " << ErrorTarget.size()
+              << std::endl;
+    std::cout << "Connectivity size: " << Connectivity.size()
+              << std::endl;
     ErrorReconstructed = CurveSolv.RemeshedFDist;
+    // std::cout << "Reconstructed FDist size: " << ErrorReconstructed.size()
+    //           << std::endl;
     ErrorNormTarget = CurveSolv.TargetNErr;
+    // std::cout << "Target NErr size: " << ErrorNormTarget.size()
+    //           << std::endl;
     ErrorNormReconstructed = CurveSolv.RemeshedNErr;
-
+    // std::cout << "Reconstructed NErr size: " << ErrorNormReconstructed.size()
+    //           << std::endl;
     ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
                    SolvedVertNormals);
 
