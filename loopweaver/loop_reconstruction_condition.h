@@ -11,6 +11,7 @@
 #include "curve_solver_interface.h"
 #include <field_graph/basic_decomposition_conditions.h>
 #include <field_graph/patch_managing.h>
+#include "curve_solver.h"
 
 template <class ScalarType> struct LoopReconstructionConditionData {
   // std::vector<bool> PerPatchIsSolveable;
@@ -42,8 +43,9 @@ public:
   std::vector<std::pair<int, int>> &Features;
   bool writeDebug;
   
-  typename CurveSolverInterface<ScalarType>::ExtractParam Param;
+  //typename CurveSolverInterface<ScalarType>::ExtractParam Param;
 
+  
   // int curr_step;
   // bool mirror;
 
@@ -51,7 +53,8 @@ public:
 
   std::vector<Geo::Point3<ScalarType>> &SolvedVertPos;
   std::vector<std::vector<int>> &SolvedFaces;
-
+ 
+  CurveSolver<ScalarType> CurveSolv;
   ScalarType AbsMaxErr;
   ScalarType MaxNormErr;
   ScalarType MaxNormErrPercent;
@@ -60,6 +63,7 @@ public:
   bool match_sing_cond;
   bool single_sing_cond;
   bool smooth_paths;
+  bool done_first_global_update=false;
   // bool save_steps;
   int MinSides;
   int MaxSides;
@@ -186,39 +190,56 @@ public:
     // exit(0);
     if (writeDebug)
       std::cout << "EXTRACTING SURFACE" << std::endl;
-    typename CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
+    //typename CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
 
     if (smooth_paths)
-      Param.smooth_pdeco_steps = 20;
+      CurveSolv.smooth_pdeco_steps = 20;
+      //Param.smooth_pdeco_steps = 20;
     else
-      Param.smooth_pdeco_steps = 0;
+      CurveSolv.smooth_pdeco_steps = 0;
+      //Param.smooth_pdeco_steps = 0;
 
-    Param.PreviousSolvedConnectivity = DData.CurrSolvedFaces;
-    Param.PreviousSolvedVertPos = DData.CurrSolvedVertPos;
-    Param.PreviousSolvedPatchIndices = DData.CurrSolvedPatchIndex;
-    Param.only_updated_patches = false;
+    // Param.PreviousSolvedConnectivity = DData.CurrSolvedFaces;
+    // Param.PreviousSolvedVertPos = DData.CurrSolvedVertPos;
+    // Param.PreviousSolvedPatchIndices = DData.CurrSolvedPatchIndex;
+    // Param.only_updated_patches = false;
 
-    Res = CurveSolverInterface<ScalarType>::ExtractSurface(
-        PatchM, SolvedVertPos, SolvedFaces,Features, Param);
+   //CurveSolv.only_updated_patches = false;
 
+    // Res = CurveSolverInterface<ScalarType>::ExtractSurface(
+    //     PatchM, SolvedVertPos, SolvedFaces,Features, Param);
+    if (done_first_global_update)
+      CurveSolv.OnlyPatchIndices = PatchM.GetLastUpdatedPatches();
     
-    assert(Res.TargetFDist.size() == PatchM.Faces.size());
+    bool success = CurveSolv.UpdateSolvedMesh(PatchM);
+    
+    done_first_global_update=true;
+    //assert(Res.TargetFDist.size() == PatchM.Faces.size());
+    assert(CurveSolv.TargetFDist.size() == PatchM.Faces.size());
     // assert(Res.RemeshedFDist.size()==SolvedFaces.size());
     if (writeDebug)
       std::cout << "DONE!" << std::endl;
 
-    if (!Res.success) {
+    //if (!Res.success) {
+    if (success) {
       if (writeDebug)
         std::cout << "SURFACE EXTRACTION FAILED" << std::endl;
       return false;
     }
-    DData.ErrorTarget = Res.TargetFDist;
-    DData.ErrorReconstructed = Res.RemeshedFDist;
-    DData.ErrorNormTarget = Res.TargetNErr;
-    DData.ErrorNormReconstructed = Res.RemeshedNErr;
+    // DData.ErrorTarget = Res.TargetFDist;
+    // DData.ErrorReconstructed = Res.RemeshedFDist;
+    // DData.ErrorNormTarget = Res.TargetNErr;
+    // DData.ErrorNormReconstructed = Res.RemeshedNErr;
+    // DData.CurrSolvedVertPos = SolvedVertPos;
+    // DData.CurrSolvedFaces = SolvedFaces;
+    // DData.CurrSolvedPatchIndex = Res.RemeshedPatchIndex;
+    DData.ErrorTarget = CurveSolv.TargetFDist;
+    DData.ErrorReconstructed = CurveSolv.RemeshedFDist;
+    DData.ErrorNormTarget = CurveSolv.TargetNErr;
+    DData.ErrorNormReconstructed = CurveSolv.RemeshedNErr;
     DData.CurrSolvedVertPos = SolvedVertPos;
     DData.CurrSolvedFaces = SolvedFaces;
-    DData.CurrSolvedPatchIndex = Res.RemeshedPatchIndex;
+    DData.CurrSolvedPatchIndex = CurveSolv.SolvedPatchIndex;
 
     //consistency checks
     for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
@@ -407,7 +428,9 @@ public:
     std::vector<std::pair<int, int>> &_Features)
       : SolvedVertPos(_SolvedVertPos), 
         SolvedFaces(_SolvedFaces), 
-        Features(_Features) {
+        Features(_Features),
+        CurveSolv(Features, SolvedVertPos,
+                  SolvedFaces, DData.CurrSolvedPatchIndex) {
     AbsMaxErr = -1;
     MaxNormErr = -1;
     MaxNormErrPercent = -1;

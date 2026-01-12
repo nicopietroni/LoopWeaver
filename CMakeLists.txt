@@ -31,14 +31,18 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -march=native")
 # Sanitizer flags (can be used in BOTH Debug and Release)
 # ==============================
 if(ENABLE_SANITIZER)
-    add_compile_options(
-        -fsanitize=address,undefined
-        -fno-omit-frame-pointer
-    )
+  add_compile_options(
+    -g
+    -O1
+    -fno-omit-frame-pointer
+    -fsanitize=address,undefined
+    -fsanitize-address-use-after-scope
+    -fno-optimize-sibling-calls
+  )
 
-    add_link_options(
-        -fsanitize=address,undefined
-    )
+  add_link_options(
+    -fsanitize=address,undefined
+  )
 endif()
 
 # ==============================
@@ -59,6 +63,9 @@ include_directories(
     /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/include/curve_surfacing
     ${IGLLIB}
 )
+
+#include(libigl)
+#igl_include(restricted triangle)
 
 # ==============================
 # Find GLEW
@@ -92,6 +99,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE ${GLEW_INCLUDE_DIR})
 target_link_libraries(${PROJECT_NAME}
    /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/build/libcurvesurfacing-core.a
    /Users/134750/Desktop/00_GeoProjects/TracingFieldLib/external_lib/TetGen-1.4.3/libtet.a
+   /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/build/_deps/triangle-build/libtriangle.a
 )
 
 # ==============================

@@ -17,158 +17,6 @@
 #include <utility>
 #include <vector>
 
-// static void RemeshTest(Geo::PatchManaging<ScalarType> &PMan,
-//                        std::vector<std::pair<int, int>> &Features) {
-//   std::vector<Geo::Point3<ScalarType>> TestPos = PMan.VertPos;
-//   std::vector<std::vector<int>> TestFaces = PMan.Faces;
-
-//   std::vector<std::pair<int, int>> BoundariesEdges;
-//   PMan.GetAllSideGlobalEdges(BoundariesEdges);
-
-//   // then get all border in index structure
-//   Geo::SegmentSpatialIndex<ScalarType> SegIndex;
-//   std::vector<Geo::Segment3<ScalarType>> Segs;
-//   InitFromMeshFeatures<ScalarType>(PMan.VertPos, BoundariesEdges, Segs,
-//                                    SegIndex);
-//   // init feature set
-//   std::set<std::pair<Geo::Point3<ScalarType>, Geo::Point3<ScalarType>>>
-//   FeatureSet; for (size_t i = 0; i < Features.size(); i++) {
-//     int v0 = Features[i].first;
-//     int v1 = Features[i].second;
-//     Geo::Point3<ScalarType> P0 = PMan.VertPos[v0];
-//     Geo::Point3<ScalarType> P1 = PMan.VertPos[v1];
-//     FeatureSet.insert(std::make_pair(std::min(P0, P1), std::max(P0, P1)));
-//   }
-
-//   // then perform the remeshing
-//   std::vector<int> CornerVert = FixedVert(PMan);
-//   Geo::TriRemParam<ScalarType> RemP;
-//   RemP.TargetL = AvgEdgeLen(TestPos, TestFaces);
-//   RemP.TargetL *= 2.0;
-//   RemP.steps = 10;
-//   RemP.fix_borders = false;
-
-//   Geo::MeshFeatures<ScalarType>::BoolVariablesFromPairs(
-//       TestPos, TestFaces, BoundariesEdges, CornerVert, RemP.IsFaceEFeature,
-//       RemP.IsVertCorner);
-
-//   std::vector<std::pair<int, int>> OriginalBoundary = BoundariesEdges;
-//   Geo::TriRemesh<ScalarType>(TestPos, TestFaces, RemP);
-
-//   // get back feature edges
-//   Geo::MeshFeatures<ScalarType>::GetVertPairFromBoolFeatures(
-//       TestFaces, RemP.IsFaceEFeature, BoundariesEdges);
-
-//   // split to test
-//   SplitMeshFromEdges(TestPos, TestFaces, BoundariesEdges);
-
-//   // get border sequences
-//   std::vector<std::vector<int>> BorderSeq;
-//   getBorderSequncesVert(TestFaces, BorderSeq);
-
-//   // std::cout << "Feature edge set num: " << FeatureSet.size() <<
-//   std::endl;
-//   // std::cout << "Border edge num: " << BorderSeq.size() << std::endl;
-
-//   // then find closest segment for all border sequences
-//   // using the average position of the edge as query
-//   // if the closeset segment is a feature edge, then add to new features
-//   std::vector<std::pair<int, int>> NewFeatures;
-//   ScalarType maxDist = SegIndex.bbox.Diag();
-//   for (size_t i = 0; i < BorderSeq.size(); i++) {
-//   for (size_t j = 0; j < BorderSeq[i].size(); j++) {
-//     int IndexV0 = BorderSeq[i][j];
-//     int IndexV1 = BorderSeq[i][(j + 1) % BorderSeq[i].size()];
-//     Geo::Point3<ScalarType> Pos0 = TestPos[IndexV0];
-//     Geo::Point3<ScalarType> Pos1 = TestPos[IndexV1];
-//     Geo::Point3<ScalarType> MidP = Pos0 * 0.5 + Pos1 * 0.5;
-//     int ClosestSegIdx = -1;
-//     Geo::Point3<ScalarType> ClosestPt;
-//     bool found =
-//         SegIndex.GridClosest(Segs, MidP, maxDist, ClosestSegIdx,
-//         ClosestPt);
-//     // std::cout<<"found:"<<found<<std::endl;
-//     // std::cout<<"ClosestSegIdx:"<<ClosestSegIdx<<std::endl;
-//     assert(ClosestSegIdx >= 0);
-//     assert(ClosestSegIdx < Segs.size());
-//     Geo::Point3<ScalarType> FP0 = Segs[ClosestSegIdx].P(0);
-//     Geo::Point3<ScalarType> FP1 = Segs[ClosestSegIdx].P(1);
-//     std::pair<Geo::Point3<ScalarType>, Geo::Point3<ScalarType>> Key(
-//         std::min(FP0, FP1), std::max(FP0, FP1));
-//     if (FeatureSet.count(Key) > 0) {
-//       // add to new features
-//       NewFeatures.push_back(std::make_pair(IndexV0, IndexV1));
-//     }
-//   }
-// }
-
-//   std::cout << "Original feature num: " << Features.size()
-//             << ", New feature num: " << NewFeatures.size() << std::endl;
-
-//   // then save new features for debug
-//   std::vector<Geo::Point3<ScalarType>> NewFeaturePos;
-//   std::vector<std::vector<int>> NewFeatureEdgesM;
-//   Geo::EdgeMeshFunctions<ScalarType>::ExtractEdgeMeshFromVertPairs(
-//       TestPos, TestFaces, NewFeatures, NewFeaturePos, NewFeatureEdgesM);
-
-//   WriteOBJ("./debug_features.obj", NewFeaturePos, NewFeatureEdgesM);
-//   WriteOBJ("./debug_remeshed.obj", TestPos, TestFaces);
-//   exit(0);
-// }
-
-// static void RemeshTest(const Geo::PatchManaging<ScalarType> &PMan,
-//                        const std::vector<std::pair<int, int>> &Features,
-//                        std::vector<Geo::Point3<ScalarType>> &RemeshedPos,
-//                        std::vector<std::vector<int>> &RemeshedFaces,
-//                        std::vector<std::pair<int, int>> &NewFeatures) {
-
-//   std::vector<std::pair<int, int>> BoundariesEdges;
-//   PMan.GetAllSideGlobalEdges(BoundariesEdges);
-
-//   // then perform the remeshing
-//   std::vector<int> CornerVert = FixedVert(PMan);
-//   Geo::TriRemParam<ScalarType> RemP;
-//   RemP.TargetL = AvgEdgeLen(RemeshedPos, RemeshedFaces);
-//   RemP.TargetL *= 2.0;
-//   RemP.steps = 10;
-//   RemP.fix_borders = false;
-
-//   Geo::MeshFeatures<ScalarType>::BoolVariablesFromPairs(
-//       RemeshedPos, RemeshedFaces, BoundariesEdges, CornerVert,
-//       RemP.IsFaceEFeature, RemP.IsVertCorner);
-
-//   std::cout << "Start remeshing..." << std::endl;
-//   Geo::TriRemesh<ScalarType>(RemeshedPos, RemeshedFaces, RemP);
-//   std::cout << "Remeshing done." << std::endl;
-
-//   // get back feature edges
-//   std::vector<std::pair<int, int>> RemBoundariesEdges;
-//   PMan.GetAllSideGlobalEdges(RemBoundariesEdges);
-//   Geo::MeshFeatures<ScalarType>::GetVertPairFromBoolFeatures(
-//       RemeshedFaces, RemP.IsFaceEFeature, RemBoundariesEdges);
-
-//   // split to test
-//   SplitMeshFromEdges(RemeshedPos, RemeshedFaces, RemBoundariesEdges);
-
-//   // get new border edges
-//   Geo::getBorderEdges(RemeshedFaces, RemBoundariesEdges);
-
-//   NewFeatures = Geo::MeshFeatures<ScalarType>::TransportFeatures(
-//       PMan.VertPos, Features, BoundariesEdges, RemeshedPos,
-//       RemBoundariesEdges);
-
-//   // then save new features for debug
-//   std::vector<Geo::Point3<ScalarType>> NewFeaturePos;
-//   std::vector<std::vector<int>> NewFeatureEdgesM;
-//   Geo::EdgeMeshFunctions<ScalarType>::ExtractEdgeMeshFromVertPairs(
-//       RemeshedPos, RemeshedFaces, NewFeatures, NewFeaturePos,
-//       NewFeatureEdgesM);
-
-//   WriteOBJ("./debug_features.obj", NewFeaturePos, NewFeatureEdgesM);
-//   WriteOBJ("./debug_remeshed.obj", RemeshedPos, RemeshedFaces);
-//   exit(0);
-// }
-
 template <class ScalarType> struct CurveSolverInterface {
 
   static void SmoothPaths(Geo::PatchManaging<ScalarType> &PMan,
@@ -210,15 +58,23 @@ template <class ScalarType> struct CurveSolverInterface {
     }
     Faces = result.output_mesh.faces;
     PatchIndex = result.output_mesh.face_cycle_ids;
+
+    // check
+    if (Faces.size() != PatchIndex.size()) {
+      std::cout << "ReassembleOutputMesh: face size and patch index size not "
+                   "match"
+                << std::endl;
+      exit(0);
+    }
   }
 
   static void
-  CopySubMeshPath(int IndexPatch,
-                  const std::vector<Geo::Point3<ScalarType>> &SourceVertPos,
-                  const std::vector<std::vector<int>> &SourceFaces,
-                  const std::vector<int> &SourceFacesIndices,
-                  std::vector<Geo::Point3<ScalarType>> &CopiedIndexVertPos,
-                  std::vector<std::vector<int>> &CopiedIndexFaces) {
+  CopySubMeshPatch(int IndexPatch,
+                   const std::vector<Geo::Point3<ScalarType>> &SourceVertPos,
+                   const std::vector<std::vector<int>> &SourceFaces,
+                   const std::vector<int> &SourceFacesIndices,
+                   std::vector<Geo::Point3<ScalarType>> &CopiedIndexVertPos,
+                   std::vector<std::vector<int>> &CopiedIndexFaces) {
     // get the index of faces to be copied
     std::vector<int> FacesInPatch;
     for (size_t i = 0; i < SourceFacesIndices.size(); i++) {
@@ -249,6 +105,48 @@ template <class ScalarType> struct CurveSolverInterface {
     std::vector<int> PatchIndexResult;
     ReassembleOutputMesh(result, VertPosResult, FacesResult, PatchIndexResult);
 
+    /// DEBUG CHECKS
+    // check all patches idex are not empty
+    for (size_t i = 0; i < PatchIndexResult.size(); i++) {
+      int IndexPatch = PatchIndexResult[i];
+      if (PMan.isEmpty(IndexPatch)) {
+        std::cout << "WARNING: Skipping empty patch ReassembleOutputMesh2 "
+                     "IndexPatch: "
+                  << IndexPatch << std::endl;
+        exit(0);
+      }
+    }
+    // check there is some face for ones in GetNewPatches
+    for (const int &IndexPatch : GetNewPatches) {
+      bool found = false;
+      for (size_t i = 0; i < PatchIndexResult.size(); i++) {
+        if (PatchIndexResult[i] == IndexPatch) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        std::cout << "ReassembleOutputMesh2: no face found for new patch index "
+                  << IndexPatch << std::endl;
+        exit(0);
+      }
+    }
+    for (const int &IndexPatch : CopyFromOldPatches) {
+      bool found = false;
+      for (size_t i = 0; i < PreviousSolvedPatchIndices.size(); i++) {
+        if (PreviousSolvedPatchIndices[i] == IndexPatch) {
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        std::cout << "ReassembleOutputMesh2: no face found for old patch index "
+                  << IndexPatch << std::endl;
+        exit(0);
+      }
+    }
+    /// END DEBUG CHECKS
+
     VertPos.clear();
     Faces.clear();
     PatchIndex.clear();
@@ -258,11 +156,11 @@ template <class ScalarType> struct CurveSolverInterface {
         // then copy from result
         std::vector<Geo::Point3<ScalarType>> CopiedVertPos;
         std::vector<std::vector<int>> CopiedFaces;
-        CopySubMeshPath(i, VertPosResult, FacesResult, PatchIndexResult,
-                        CopiedVertPos, CopiedFaces);
+        CopySubMeshPatch(i, VertPosResult, FacesResult, PatchIndexResult,
+                         CopiedVertPos, CopiedFaces);
 
         if (CopiedVertPos.size() == 0) {
-          std::cout << "ReassembleOutputMesh2: copied vert pos size is 0"
+          std::cout << "ReassembleOutputMesh New: copied vert pos size is 0"
                     << std::endl;
           exit(0);
         }
@@ -275,11 +173,12 @@ template <class ScalarType> struct CurveSolverInterface {
         // copy from previous solved mesh
         std::vector<Geo::Point3<ScalarType>> CopiedVertPos;
         std::vector<std::vector<int>> CopiedFaces;
-        CopySubMeshPath(i, PreviousSolvedVertPos, PreviousSolvedConnectivity,
-                        PreviousSolvedPatchIndices, CopiedVertPos, CopiedFaces);
+        CopySubMeshPatch(i, PreviousSolvedVertPos, PreviousSolvedConnectivity,
+                         PreviousSolvedPatchIndices, CopiedVertPos,
+                         CopiedFaces);
 
         if (CopiedFaces.size() == 0) {
-          std::cout << "ReassembleOutputMesh2: copied faces size is zero"
+          std::cout << "ReassembleOutputMesh Old: copied faces size is zero"
                     << std::endl;
           exit(0);
         }
@@ -416,7 +315,8 @@ template <class ScalarType> struct CurveSolverInterface {
   CallExtractor(Geo::PatchManaging<ScalarType> &PMan, bool has_features,
                 bool use_original_meshing = false, int iteration = 5,
                 bool writeDebug = false, bool SavePatchMeshes = false,
-                const std::vector<int> &OnlyOnPatches = std::vector<int>()) {
+                const std::vector<int> &OnlyOnPatches = std::vector<int>(),
+                const std::string &FileName = "temp") {
     // check the patches
     for (size_t i = 0; i < OnlyOnPatches.size(); i++) {
       int PatchIdx = OnlyOnPatches[i];
@@ -431,17 +331,21 @@ template <class ScalarType> struct CurveSolverInterface {
         exit(0);
       }
     }
+
     std::vector<Geex::CurveData> curves_data =
-        Geex::load_curves_from_file("./temp.curve");
+        Geex::load_curves_from_file((FileName + ".curve").c_str());
+
     std::vector<Geex::CycleData> cycles_data =
-        Geex::load_cycles_from_file("./temp");
+        Geex::load_cycles_from_file((FileName).c_str());
 
     Geex::NormalCurveData normal_data;
-    Geex::load_normal_curves_from_file("./temp.normalcurve");
+    normal_data =
+        Geex::load_normal_curves_from_file((FileName + ".normalcurve").c_str());
 
     Geex::FeatureEdgeData featureData;
     if (has_features)
-      featureData = Geex::load_feature_edges_from_file("./temp.feat");
+      featureData =
+          Geex::load_feature_edges_from_file((FileName + ".feat").c_str());
 
     if (writeDebug)
       std::cout << "*** EXTRACTING SURFACE ***" << std::endl;
@@ -488,43 +392,40 @@ template <class ScalarType> struct CurveSolverInterface {
     CurveSurfacing::CurveSurfacingResult result;
     // if (has_features) {
     std::vector<int> patch_ids = OnlyOnPatches;
-    // for (size_t i = 0; i < cycles_data.size(); i++)
-    //   patch_ids.push_back(i);
 
-    // if (PMan.NumPatches()!= OnlyOnPatches.size() && OnlyOnPatches.size()>0){
-    //   std::cout<<"Num Patches: "<<PMan.NumPatches()<<std::endl;
-    //   std::cout<<"Num Solving: "<<OnlyOnPatches.size()<<std::endl;
-    //   exit(0);
+    // iteration= 1;
+    // if (has_features) {
+
+    if (use_original_meshing) {
+      result = CurveSurfacing::curve_surfacing_core(
+          curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
+          CurveSurfacing::LeastSquaresSolverType::LSCG,
+          featureData); //,normal_data);
+    } else {
+      result = CurveSurfacing::curve_surfacing_core(
+          curves_data, cycles_data, iteration, false, patch_ids,
+          CurveSurfacing::LeastSquaresSolverType::LSCG,
+          featureData); //,normal_data);
+    }
     // }
-
-    // std::cout << "Calling curve surfacing core..." << std::endl;
-    //  std::cout<<"TEST A"<<std::endl;
-    iteration= 1;
-    //if (has_features) {
-
-      if (use_original_meshing) {
-        result = CurveSurfacing::curve_surfacing_core(
-            curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
-            CurveSurfacing::LeastSquaresSolverType::LSCG, featureData);//,normal_data);
-      } else {
-        result = CurveSurfacing::curve_surfacing_core(
-            curves_data, cycles_data, iteration, false, patch_ids,
-            CurveSurfacing::LeastSquaresSolverType::LSCG, featureData);//,normal_data);
-      }
-   // }
     // } else {
     //   if (use_original_meshing) {
     //     result = CurveSurfacing::curve_surfacing_core(
-    //         curves_data, cycles_data, patch_meshes, iteration, 
-    //         true, patch_ids,CurveSurfacing::LeastSquaresSolverType::LSCG,normal_data);
+    //         curves_data, cycles_data, patch_meshes, iteration,
+    //         true,
+    //         patch_ids,CurveSurfacing::LeastSquaresSolverType::LSCG,normal_data);
     //   } else {
     //     result = CurveSurfacing::curve_surfacing_core(
-    //         curves_data, cycles_data, iteration, 
-    //         false, patch_ids,CurveSurfacing::LeastSquaresSolverType::LSCG,normal_data);
+    //         curves_data, cycles_data, iteration,
+    //         false,
+    //         patch_ids,CurveSurfacing::LeastSquaresSolverType::LSCG,normal_data);
     //   }
     // }
     // std::cout << "Curve surfacing core done." << std::endl;
     //  std::cout<<"TEST B"<<std::endl;
+
+    // check result
+
     return result;
   }
 
@@ -673,6 +574,7 @@ public:
     std::vector<Geo::Point3<ScalarType>> PreviousSolvedVertPos;
     std::vector<std::vector<int>> PreviousSolvedConnectivity;
 
+    std::string FileName = "temp";
     // bool remesh_original_patches = false;
 
     void MakeCoherent() {
@@ -697,13 +599,13 @@ public:
                  const std::vector<std::pair<int, int>> &Features,
                  ExtractParam &param = ExtractParam()) {
 
-    std::vector<int> GetNewPatches;
-    std::vector<int> CopyFromOldPatches;
+    //std::vector<int> ProcessPatchIndices;
+    //std::vector<int> CopyFromOldPatches;
 
-    bool has_previous_solution =
-        ((param.PreviousSolvedPatchIndices.size() > 0) &&
-         (param.PreviousSolvedVertPos.size() > 0) &&
-         (param.PreviousSolvedConnectivity.size() > 0));
+    // bool has_previous_solution =
+    //     ((param.PreviousSolvedPatchIndices.size() > 0) &&
+    //      (param.PreviousSolvedVertPos.size() > 0) &&
+    //      (param.PreviousSolvedConnectivity.size() > 0));
 
     // if (has_previous_solution) {
     //   std::cout << "ExtractSurface: Previous solution with "
@@ -711,29 +613,39 @@ public:
     //             << std::endl;
     //   exit(0);
     // }
-    if (param.only_updated_patches && has_previous_solution) {
-      GetNewPatches = PMan.GetLastUpdatedPatches();
-      std::set<int> GetNewPatchesSet(GetNewPatches.begin(),
-                                     GetNewPatches.end());
-      for (size_t i = 0; i < PMan.NumPatches(); i++) {
-        if (PMan.isEmpty(i))
-          continue;
-        if (GetNewPatchesSet.count(i) == 0)
-          CopyFromOldPatches.push_back(i);
-      }
-      // std::cout << "ExtractSurface: Solving " << GetNewPatches.size()
-      //           << " patches out of " << PMan.NumPatches() << " patches."
-      //           << std::endl;
-      // std::cout << "ExtractSurface: Copying " << CopyFromOldPatches.size()
-      //           << " patches from previous solution." << std::endl;
-      // exit(0);
-    } else {
-      for (size_t i = 0; i < PMan.NumPatches(); i++) {
-        if (PMan.isEmpty(i))
-          continue;
-        GetNewPatches.push_back(i);
-      }
-    }
+
+    // if (param.only_updated_patches && has_previous_solution) {
+    //   // remove the empty patches modified from previous solution
+    //   GetNewPatches.clear();
+    //   std::vector<int> AllUpdatedPatches = PMan.GetLastUpdatedPatches();
+    //   for (size_t i = 0; i < AllUpdatedPatches.size(); i++) {
+    //     int PatchIdx = AllUpdatedPatches[i];
+    //     if (PMan.isEmpty(PatchIdx))
+    //       continue;
+    //     GetNewPatches.push_back(PatchIdx);
+    //   }
+
+    //   std::set<int> GetNewPatchesSet(GetNewPatches.begin(),
+    //                                  GetNewPatches.end());
+    //   for (size_t i = 0; i < PMan.NumPatches(); i++) {
+    //     if (PMan.isEmpty(i))
+    //       continue;
+    //     if (GetNewPatchesSet.count(i) == 0)
+    //       CopyFromOldPatches.push_back(i);
+    //   }
+    //   // std::cout << "ExtractSurface: Solving " << GetNewPatches.size()
+    //   //           << " patches out of " << PMan.NumPatches() << " patches."
+    //   //           << std::endl;
+    //   // std::cout << "ExtractSurface: Copying " << CopyFromOldPatches.size()
+    //   //           << " patches from previous solution." << std::endl;
+    //   // exit(0);
+    // } else {
+      // for (size_t i = 0; i < PMan.NumPatches(); i++) {
+      //   if (PMan.isEmpty(i))
+      //     continue;
+      //   ProcessPatchIndices.push_back(i);
+      // }
+    //}
 
     // check parameters
     param.MakeCoherent();
@@ -744,28 +656,41 @@ public:
     std::vector<std::vector<int>> TargetFaces = PMan.Faces;
 
     Geo::PatchManaging<ScalarType> PManCopy = PMan;
-    std::map<int, int> PatchIdxRemap;
-    PManCopy.CompactEmptyPatches(PatchIdxRemap);
-
-    // remap after compression
-    for (size_t i = 0; i < GetNewPatches.size(); i++) {
-      GetNewPatches[i] = PatchIdxRemap[GetNewPatches[i]];
+    std::map<int, int> PatchIdxRemap0;
+    PManCopy.CompactEmptyPatches(PatchIdxRemap0);
+    
+    std::vector<int> ProcessPatchIndices;
+    for (size_t i = 0; i < PManCopy.NumPatches(); i++) {
+      ProcessPatchIndices.push_back(i);
     }
 
-    for (size_t i = 0; i < CopyFromOldPatches.size(); i++) {
-      CopyFromOldPatches[i] = PatchIdxRemap[CopyFromOldPatches[i]];
-    }
+    // // remap after compression
+    // for (size_t i = 0; i < GetNewPatches.size(); i++) {
+    //   GetNewPatches[i] = PatchIdxRemap[GetNewPatches[i]];
+    //   if (PManCopy.isEmpty(GetNewPatches[i])) {
+    //     std::cerr << "Error: Patch " << GetNewPatches[i]
+    //               << " is empty after compaction but specified for extraction."
+    //               << std::endl;
+    //     exit(0);
+    //   }
+    // }
+
+    // for (size_t i = 0; i < CopyFromOldPatches.size(); i++) {
+    //   CopyFromOldPatches[i] = PatchIdxRemap[CopyFromOldPatches[i]];
+    // }
+    // // map also previous solved patches
+    // for (size_t i = 0; i < param.PreviousSolvedPatchIndices.size(); i++) {
+    //   param.PreviousSolvedPatchIndices[i] =
+    //       PatchIdxRemap[param.PreviousSolvedPatchIndices[i]];
+    // }
 
     // map the
     //  revert the map
-    for (auto &it : PatchIdxRemap) {
+    std::map<int, int> PatchIdxRemap;
+    for (auto &it : PatchIdxRemap0) {
       int OldIdx = it.first;
       int NewIdx = it.second;
       PatchIdxRemap[NewIdx] = OldIdx;
-    }
-
-    for (size_t i = 0; i < PManCopy.NumPatches(); i++) {
-      assert(!PManCopy.isEmpty(i));
     }
 
     // restore original positions on split borders
@@ -808,18 +733,25 @@ public:
       std::cout << "*** SAVING CURVE CYCLE DATA ***" << std::endl;
 
     std::vector<std::pair<int, int>> FeaturesRemap = Features;
+    // Geo::CurveCycles<ScalarType>::SaveCurveCycleData(
+    //     PManCopy, "./temp", FeaturesRemap, param.subsample_factor);
     Geo::CurveCycles<ScalarType>::SaveCurveCycleData(
-        PManCopy, "./temp", FeaturesRemap, param.subsample_factor);
+        PManCopy, param.FileName.c_str(), FeaturesRemap,
+        param.subsample_factor);
     // PManCopy.SaveCurveCycleData("./temp", FeaturesRemap,
     // param.subsample_factor);
 
     if (FeaturesRemap.size() > 0) {
-      SaveFeatureCoord(PManCopy.VertPos, FeaturesRemap, "./temp.feat");
+      // SaveFeatureCoord(PManCopy.VertPos, FeaturesRemap, "./temp.feat");
+      SaveFeatureCoord(PManCopy.VertPos, FeaturesRemap,
+                       (param.FileName + ".feat").c_str());
       // featureData = Geex::load_feature_edges_from_file("./temp.feat");
     }
 
+    // bool saved = Geo::CurveCycles<ScalarType>::WriteNormalCycleFile(
+    //     PManCopy, FeaturesRemap, "./temp");
     bool saved = Geo::CurveCycles<ScalarType>::WriteNormalCycleFile(
-        PManCopy, FeaturesRemap, "./temp");
+        PManCopy, FeaturesRemap, (param.FileName).c_str());
     if (!saved) {
       std::cerr << "Error: Unable to write cycle normal data file."
                 << std::endl;
@@ -830,13 +762,13 @@ public:
 
     static CurveSurfacing::CurveSurfacingResult result;
     std::cout << "Calling extractor..." << std::endl;
-    for (size_t i = 0; i < GetNewPatches.size(); i++) {
-      std::cout << "  Patch to solve: " << GetNewPatches[i] << std::endl;
-    }
-    result =
-        CallExtractor(PManCopy, FeaturesRemap.size() > 0,
-                      param.use_original_meshing, param.iteration,
-                      param.writeDebug, param.save_patch_meshes, GetNewPatches);
+    // for (size_t i = 0; i < GetNewPatches.size(); i++) {
+    //   std::cout << "  Patch to solve: " << GetNewPatches[i] << std::endl;
+    // }
+    result = CallExtractor(PManCopy, FeaturesRemap.size() > 0,
+                           param.use_original_meshing, param.iteration,
+                           param.writeDebug, param.save_patch_meshes,
+                           ProcessPatchIndices, param.FileName);
 
     if (param.writeDebug)
       std::cout << "*** DONE ***" << std::endl;
@@ -850,21 +782,38 @@ public:
 
       // std::cout << "Test0" << std::endl;
 
-      if (param.only_updated_patches && has_previous_solution)
-        ReassembleOutputMesh2(
-            PManCopy, result, GetNewPatches, CopyFromOldPatches,
-            param.PreviousSolvedPatchIndices, param.PreviousSolvedVertPos,
-            param.PreviousSolvedConnectivity, VertPos, Faces,
-            output.RemeshedPatchIndex);
-      else
-        ReassembleOutputMesh(result, VertPos, Faces, output.RemeshedPatchIndex);
+      // if (param.only_updated_patches && has_previous_solution)
+      //   ReassembleOutputMesh2(
+      //       PManCopy, result, GetNewPatches, CopyFromOldPatches,
+      //       param.PreviousSolvedPatchIndices, param.PreviousSolvedVertPos,
+      //       param.PreviousSolvedConnectivity, VertPos, Faces,
+      //       output.RemeshedPatchIndex);
+      // else
+      
+      ReassembleOutputMesh(result, VertPos, Faces, output.RemeshedPatchIndex);
 
       // std::cout << "Test1" << std::endl;
       // remap the indexes
       for (size_t i = 0; i < output.RemeshedPatchIndex.size(); i++) {
         int oldIdx = output.RemeshedPatchIndex[i];
         assert(PatchIdxRemap.find(oldIdx) != PatchIdxRemap.end());
+
+        if (PManCopy.isEmpty(oldIdx)) {
+          std::cerr << "Error 0: remeshed patch index " << std::endl;
+          exit(0);
+        }
+
+        if (PatchIdxRemap.count(oldIdx)==0) {
+          std::cerr << "Error: remapped patch index not found for old index " << oldIdx << std::endl;
+          exit(0);
+        }
+
         output.RemeshedPatchIndex[i] = PatchIdxRemap[oldIdx];
+
+        if (PMan.isEmpty(PatchIdxRemap[oldIdx])) {
+          std::cerr << "Error 1: remeshed patch index " << std::endl;
+          exit(0);
+        }
       }
 
       // // Compute Hausdorff distance to target mesh
@@ -944,16 +893,17 @@ public:
 
     // restore original positions
     PManCopy.VertPos = TargetVertPos;
-
+    PManCopy.Faces = TargetFaces;
     return output;
   }
 
-  // static ExtractSurfaceResult
-  // ExtractSurface(const Geo::PatchManaging<ScalarType> &PMan,
-  //                std::vector<Geo::Point3<ScalarType>> &VertPos,
-  //                std::vector<std::vector<int>> &Faces,
-  //                const std::vector<std::pair<int, int>> &Features,
-  //                ExtractParam &param = ExtractParam()) {
+  // virtual bool Mandatory() const { return true; }
+  //  static ExtractSurfaceResult
+  //  ExtractSurface(const Geo::PatchManaging<ScalarType> &PMan,
+  //                 std::vector<Geo::Point3<ScalarType>> &VertPos,
+  //                 std::vector<std::vector<int>> &Faces,
+  //                 const std::vector<std::pair<int, int>> &Features,
+  //                 ExtractParam &param = ExtractParam()) {
 
   //   // check parameters
   //   param.MakeCoherent();

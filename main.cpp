@@ -44,6 +44,7 @@
 #include <smooth_cross_field.h>
 
 // including FieldGraph Stuff
+#include "loopweaver/curve_solver.h"
 #include "loopweaver/curve_solver_interface.h"
 #include <field_graph/graph.h>
 #include <field_graph/mesh_preprocess.h>
@@ -151,9 +152,9 @@ std::vector<int> BoundaryVerts;
 
 bool loop_recon_cond = true;
 bool normal_approx_cond = false;
-bool side_curvature_cond = true;
+bool side_curvature_cond = false;
 bool beier_error_cond = true;
-
+bool saved_last_screenshot = false;
 int SmoothPathSteps = 20;
 
 ScalarType maxErrRatio = 0.05;
@@ -179,6 +180,7 @@ std::vector<Geo::Point3<ScalarType>> FaceColorTarget;
 std::vector<Geo::Point3<ScalarType>> FaceColorReconstructed;
 
 int numSamples = 10000;
+int rendercycles = 0;
 bool dynamic_updates = true;
 // the condition used for loop reconstruction
 LoopReconstructionCondition<ScalarType> LoopCond(SolvedVertPos,
@@ -197,9 +199,8 @@ Geo::SideCurvatureCondition<ScalarType> SideAngleCond(MaxSideSumAngle);
 // ScalarType MaxSideVarianceAngle = 15.0;
 // Geo::SideCurvatureVarianceCondition<ScalarType>
 //     SideVarianceCond(MaxSideVarianceAngle);
-ScalarType MaxBezierErrorPerc = 1;
-Geo::SideCurvatureBezierCondition<ScalarType>
-SideBezierCond(MaxBezierErrorPerc*0.01);
+ScalarType MaxBezierErrorPerc = 2;
+Geo::SideCurvatureBezierCondition<ScalarType> SideBezierCond;
 
 // new version
 MeshPatchDecomposition<ScalarType> MPatchDeco(VertPos, Connectivity, FaceCurv,
@@ -207,13 +208,21 @@ MeshPatchDecomposition<ScalarType> MPatchDeco(VertPos, Connectivity, FaceCurv,
 
 MechanicalIllustrativeShader *illustrative;
 
-CurveSolverInterface<ScalarType>::ExtractParam FinalExtrParam;
+// CurveSolverInterface<ScalarType>::ExtractParam FinalExtrParam;
 
 // std::vector<std::vector<std::vector<int>>> PatchNormalVerts;
 std::vector<std::vector<std::vector<std::pair<int, int>>>> PatchNormalEdges;
 std::vector<std::vector<std::vector<Geo::Point3<ScalarType>>>> PatchNormals;
 
-bool get_screenshot = false;
+bool get_screenshot_original = false;
+bool get_screenshot_boundaries = false;
+
+bool do_Batch_compute = false;
+
+std::vector<int> SolvedPatchIndex;
+
+CurveSolver<ScalarType> CurveSolv(Features, SolvedVertPos, SolvedConnectivity,
+                                  SolvedPatchIndex);
 
 void InitDefaultParam() {
   MPatchDeco.single_boundary_cond = true;
@@ -321,27 +330,35 @@ void InitSymmetryPlane() {
 std::vector<Geo::Polyline3<ScalarType>> BezierPolylines;
 std::vector<Geo::Point3<ScalarType>> BezierColorError;
 
-void TestBezierPaths() { 
-  MPatchDeco.GetAllSidesPolyLines(BezierPolylines); 
+void TestBezierPaths() {
+  MPatchDeco.GetAllSidesPolyLines(BezierPolylines);
   std::vector<ScalarType> SideErrors;
   ScalarType AllMaxError = 0;
-  for (size_t i=0;i<BezierPolylines.size();i++)
-  {
+  for (size_t i = 0; i < BezierPolylines.size(); i++) {
     Geo::Polyline3<ScalarType> SmoothBezier;
-    SmoothBezier = Geo::BezierFitting<ScalarType>::SampleFittedQuadraticBezierPolyline(BezierPolylines[i]);
+    SmoothBezier =
+        Geo::BezierFitting<ScalarType>::SampleFittedQuadraticBezierPolyline(
+            BezierPolylines[i]);
     ScalarType MaxError = 0;
     ScalarType PolyL = BezierPolylines[i].Lenght();
-    for (size_t j=0;j<SmoothBezier.PolyPos.size();j++)
-    {
-      ScalarType CurrError = (SmoothBezier.PolyPos[j]-BezierPolylines[i].PolyPos[j]).Norm();
-      //CurrError=pow(CurrError,2)/pow(PolyL,2);
-      MaxError = std::max(MaxError,CurrError);
+    for (size_t j = 0; j < SmoothBezier.PolyPos.size(); j++) {
+      ScalarType CurrError =
+          (SmoothBezier.PolyPos[j] - BezierPolylines[i].PolyPos[j]).Norm();
+      // CurrError=pow(CurrError,2)/pow(PolyL,2);
+      MaxError = std::max(MaxError, CurrError);
     }
-    AllMaxError=std::max(AllMaxError,MaxError);
-    BezierPolylines[i]= SmoothBezier;
+    AllMaxError = std::max(AllMaxError, MaxError);
+    BezierPolylines[i] = SmoothBezier;
     SideErrors.push_back(MaxError);
   }
-  GetColorByScalar<ScalarType>(SideErrors, MaxBezierErrorPerc*0.01*MeshBox.Diag(), 0,BezierColorError);
+  ScalarType MaxError = MaxBezierErrorPerc * 0.01 * MeshBox.Diag();
+  GetColorByScalar<ScalarType>(SideErrors, MaxError * 2, 0, BezierColorError);
+  // set the one over the error in red
+  for (size_t i = 0; i < SideErrors.size(); i++) {
+    if (SideErrors[i] >= MaxError)
+      BezierColorError[i] = Geo::Point3<ScalarType>(1, 0, 0);
+  }
+  std::cout << "Max Allowed Error Condition:" << MaxError << std::endl;
 }
 
 void SplitMeshPlane() {
@@ -390,37 +407,6 @@ void ReassembleMesh() {
   std::vector<Field::CrossF<ScalarType>> FaceCurvMirror = FaceCurv;
   MirrorCross<ScalarType>(FaceCurvMirror, SymmetryPlane);
   FaceCurv.insert(FaceCurv.end(), FaceCurvMirror.begin(), FaceCurvMirror.end());
-
-  // then save their position
-  RemoveDuplicatedVert(VertPos, Connectivity);
-
-  ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
-  Geo::getFFAdjacency(Connectivity, NextF, NextE);
-
-  SetVertCrossFromFace(VertPos, Connectivity, VertNormals, FaceCurv, VertCurv);
-
-  // then mirror the solved mesh
-  if (has_result) {
-    std::set<int> MiddleV1;
-    MirrorMesh<ScalarType>(SolvedVertPos, SolvedConnectivity, SymmetryPlane,
-                           MiddleV);
-    ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
-                   SolvedVertNormals);
-    // append errors to itself
-    ErrorReconstructed.insert(ErrorReconstructed.end(),
-                              ErrorReconstructed.begin(),
-                              ErrorReconstructed.end());
-
-    ErrorNormReconstructed.insert(ErrorNormReconstructed.end(),
-                                  ErrorNormReconstructed.begin(),
-                                  ErrorNormReconstructed.end());
-
-    ErrorTarget.insert(ErrorTarget.end(), ErrorTarget.begin(),
-                       ErrorTarget.end());
-
-    ErrorNormTarget.insert(ErrorNormTarget.end(), ErrorNormTarget.begin(),
-                           ErrorNormTarget.end());
-  }
 
   // then mirror the paths
   // std::set<std::pair<Geo::Point3<ScalarType>, Geo::Point3<ScalarType>>>
@@ -475,6 +461,39 @@ void ReassembleMesh() {
     BoundaryPos.push_back(BPath);
   }
 
+  // then save their position
+  RemoveDuplicatedVert(VertPos, Connectivity);
+  MergeCloseVert(VertPos, Connectivity, 1e-4);
+  RemoveUnfererencedVert<ScalarType>(VertPos, Connectivity);
+
+  ComputeNormals(VertPos, Connectivity, FaceNormals, VertNormals);
+  Geo::getFFAdjacency(Connectivity, NextF, NextE);
+
+  SetVertCrossFromFace(VertPos, Connectivity, VertNormals, FaceCurv, VertCurv);
+
+  // then mirror the solved mesh
+  if (has_result) {
+    std::set<int> MiddleV1;
+    MirrorMesh<ScalarType>(SolvedVertPos, SolvedConnectivity, SymmetryPlane,
+                           MiddleV);
+    ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
+                   SolvedVertNormals);
+    // append errors to itself
+    ErrorReconstructed.insert(ErrorReconstructed.end(),
+                              ErrorReconstructed.begin(),
+                              ErrorReconstructed.end());
+
+    ErrorNormReconstructed.insert(ErrorNormReconstructed.end(),
+                                  ErrorNormReconstructed.begin(),
+                                  ErrorNormReconstructed.end());
+
+    ErrorTarget.insert(ErrorTarget.end(), ErrorTarget.begin(),
+                       ErrorTarget.end());
+
+    ErrorNormTarget.insert(ErrorNormTarget.end(), ErrorNormTarget.begin(),
+                           ErrorNormTarget.end());
+  }
+
   // then add the mirrored boundaries
   std::vector<std::vector<PosPair>> MirroredBoundaryPos;
   for (size_t i = 0; i < BoundaryPos.size(); i++) {
@@ -484,10 +503,10 @@ void ReassembleMesh() {
       Geo::Point3<ScalarType> P1 = BoundaryPos[i][j].second;
 
       // if too close to the plane to not add a duplicated edge
-      if (SymmetryPlane.Distance(P0) < 1e-6)
+      if ((SymmetryPlane.Distance(P0) < 1e-6) &&
+          (SymmetryPlane.Distance(P1) < 1e-6))
         continue;
-      if (SymmetryPlane.Distance(P1) < 1e-6)
-        continue;
+
       Geo::Point3<ScalarType> PM0 = SymmetryPlane.Mirror(P0);
       Geo::Point3<ScalarType> PM1 = SymmetryPlane.Mirror(P1);
       MBPath.push_back(std::make_pair(PM0, PM1));
@@ -598,20 +617,49 @@ void SmoothPaths() {
   UpdateMeshFieldNormals();
 }
 
+// void FinalExtractSurface() {
+//   if (has_paths) {
+//     CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
+
+//     FinalExtrParam.smooth_pdeco_steps = 0;
+//     FinalExtrParam.save_patch_meshes = false;
+//     FinalExtrParam.only_updated_patches = false;
+//     FinalExtrParam.FileName = GetFilanameNoExtension(PathMesh);
+
+//     Res = CurveSolverInterface<ScalarType>::ExtractSurface(
+//         MPatchDeco.PatchManager(), SolvedVertPos, SolvedConnectivity,
+//         Features, FinalExtrParam);
+//     ErrorTarget = Res.TargetFDist;
+//     ErrorReconstructed = Res.RemeshedFDist;
+//     ErrorNormTarget = Res.TargetNErr;
+//     ErrorNormReconstructed = Res.RemeshedNErr;
+
+//     ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
+//                    SolvedVertNormals);
+
+//     // UpdateMeshFieldNormals();
+//     has_result = true;
+//     showResult = true;
+//     // DrawColorMode = 1;
+
+//     UpdateFaceColor();
+//   }
+// }
+
 void FinalExtractSurface() {
   if (has_paths) {
-    CurveSolverInterface<ScalarType>::ExtractSurfaceResult Res;
 
-    FinalExtrParam.smooth_pdeco_steps = 0;
-    FinalExtrParam.save_patch_meshes = false;
-    FinalExtrParam.only_updated_patches = false;
-    Res = CurveSolverInterface<ScalarType>::ExtractSurface(
-        MPatchDeco.PatchManager(), SolvedVertPos, SolvedConnectivity, Features,
-        FinalExtrParam);
-    ErrorTarget = Res.TargetFDist;
-    ErrorReconstructed = Res.RemeshedFDist;
-    ErrorNormTarget = Res.TargetNErr;
-    ErrorNormReconstructed = Res.RemeshedNErr;
+    CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
+    CurveSolv.smooth_pdeco_steps = 0;
+    CurveSolv.save_patch_meshes = false;
+    // CurveSolv.only_updated_patches = false;
+    CurveSolv.iteration = 10;
+    CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+
+    ErrorTarget = CurveSolv.TargetFDist;
+    ErrorReconstructed = CurveSolv.RemeshedFDist;
+    ErrorNormTarget = CurveSolv.TargetNErr;
+    ErrorNormReconstructed = CurveSolv.RemeshedNErr;
 
     ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
                    SolvedVertNormals);
@@ -661,8 +709,9 @@ void BatchDecompose() {
     MPatchDeco.AddExtraCondition(&SideAngleCond);
   }
   if (beier_error_cond) {
-    SideBezierCond.MaxErrorRatio = MaxBezierErrorPerc*0.01;
-    SideBezierCond.Init(VertPos, Connectivity);
+    //SideBezierCond.MaxErrorRatio = MaxBezierErrorPerc * 0.01;
+    ScalarType MaxAbsError = MeshBox.Diag() * MaxBezierErrorPerc * 0.01;
+    SideBezierCond.Init(MaxAbsError,VertPos, Connectivity);
     MPatchDeco.AddExtraCondition(&SideBezierCond);
   }
   MPatchDeco.ExtractPatches(Boundary, BoundaryVerts);
@@ -672,6 +721,8 @@ void BatchDecompose() {
   UpdateFaceColor();
   showBoundaries = true;
   has_paths = true;
+
+  // MPatchDeco.RestoreOriginalPosOnSplitBorders();
 }
 
 void SmoothField() {
@@ -896,11 +947,11 @@ void SetRenderBar() {
   ImGui::End();
 }
 
-void GetStreenShotOriginalMesh() {
+void GetStreenShotMesh(std::string type) {
   // write code to get a screeshot of the openGL window will call in the
   // rendering loop also possible disable the GUI for the screenshot
   std::string ProjName = GetFilanameNoExtension(PathMesh);
-  std::string ScreenshotName = ProjName + std::string("_screenshot.png");
+  std::string ScreenshotName = ProjName + "_" + type + std::string(".png");
   int width, height;
   glfwGetFramebufferSize(window, &width, &height);
   std::vector<unsigned char> pixels(width * height * 3);
@@ -938,8 +989,7 @@ void SaveConfigFile() {
       fprintf(fout, " - maxNormAngle: %f\n", maxNormAngle);
       fprintf(fout, " - maxAnglePercentile: %f\n", maxAnglePercentile);
     }
-    fprintf(fout, "Bezier Error Condition: %d\n",
-            beier_error_cond ? 1 : 0);
+    fprintf(fout, "Bezier Error Condition: %d\n", beier_error_cond ? 1 : 0);
     if (beier_error_cond) {
       fprintf(fout, " - MaxBezierErrorPerc: %f\n", MaxBezierErrorPerc);
     }
@@ -1024,7 +1074,7 @@ void ProcessAll() {
   if (UseSymmetry)
     ReassembleMesh();
   SaveAll();
-  get_screenshot = true;
+  get_screenshot_original = true;
 }
 
 void SetConditionsBar() {
@@ -1033,7 +1083,7 @@ void SetConditionsBar() {
   ImGui::Checkbox("Loop Reconstruction Condition", &loop_recon_cond);
   if (loop_recon_cond) {
     float maxErrRatiof = maxErrRatio;
-    ImGui::SliderFloat("Reconstrution Error", &maxErrRatiof, 0.01f, 0.1f,
+    ImGui::SliderFloat("Reconstruction Error", &maxErrRatiof, 0.01f, 0.1f,
                        "%.3f", ImGuiSliderFlags_AlwaysClamp);
     maxErrRatio = maxErrRatiof;
     if (OldmaxErrRatio != maxErrRatio) {
@@ -1055,14 +1105,15 @@ void SetConditionsBar() {
                        0.0f, 0.5f, "%.1f", ImGuiSliderFlags_AlwaysClamp);
     maxAnglePercentile = maxAnglePercentilef;
 
-    ImGui::Checkbox("Original Mesh 0", &LoopCond.Param.use_original_meshing);
+    ImGui::Checkbox("Original Mesh 0",
+                    &LoopCond.CurveSolv.use_original_meshing);
     ImGui::Checkbox("Smooth Original Surface 0",
-                    &LoopCond.Param.smooth_original_meshing);
+                    &LoopCond.CurveSolv.smooth_original_meshing);
 
-    ImGui::Checkbox("Resample Path", &LoopCond.Param.resample_paths);
-    ImGui::InputInt("Subsample Factor", &LoopCond.Param.subsample_factor);
+    ImGui::Checkbox("Resample Path", &LoopCond.CurveSolv.resample_paths);
+    ImGui::InputInt("Subsample Factor", &LoopCond.CurveSolv.subsample_factor);
 
-    LoopCond.Param.MakeCoherent();
+    LoopCond.CurveSolv.MakeParametersCoherent();
   }
 
   ImGui::Checkbox("Side Curvature Condition", &side_curvature_cond);
@@ -1076,8 +1127,8 @@ void SetConditionsBar() {
   ImGui::Checkbox("Bezier Error Condition", &beier_error_cond);
   if (beier_error_cond) {
     float MaxBezierErrorf = MaxBezierErrorPerc;
-    ImGui::SliderFloat("Max Bezier Error", &MaxBezierErrorf, 0.1f, 5.0f,
-                     "%.1f", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SliderFloat("Max Bezier Error", &MaxBezierErrorf, 0.1f, 5.0f, "%.1f",
+                       ImGuiSliderFlags_AlwaysClamp);
     MaxBezierErrorPerc = MaxBezierErrorf;
   }
 
@@ -1192,14 +1243,14 @@ void SetToolBar() {
   ImGui::Checkbox("DO Final Extraction", &final_extraction);
 
   if (ImGui::CollapsingHeader("Final Extraction")) {
-    ImGui::Checkbox("Original Mesh", &FinalExtrParam.use_original_meshing);
+    ImGui::Checkbox("Original Mesh", &CurveSolv.use_original_meshing);
     ImGui::Checkbox("Smooth Original Surface",
-                    &FinalExtrParam.smooth_original_meshing);
+                    &CurveSolv.smooth_original_meshing);
 
-    ImGui::Checkbox("Resample Path", &FinalExtrParam.resample_paths);
-    ImGui::InputInt("Subsample Factor", &FinalExtrParam.subsample_factor);
+    ImGui::Checkbox("Resample Path", &CurveSolv.resample_paths);
+    ImGui::InputInt("Subsample Factor", &CurveSolv.subsample_factor);
 
-    FinalExtrParam.MakeCoherent();
+    CurveSolv.MakeParametersCoherent();
   }
 
   ImGui::Separator();
@@ -1241,7 +1292,7 @@ void SetToolBar() {
   }
 
   if (ImGui::Button("Get Screenshot")) {
-    get_screenshot = true;
+    get_screenshot_original = true;
   }
 
   if (ImGui::Button("Test Normals")) {
@@ -1328,17 +1379,6 @@ void SetToolBar() {
   if (ImGui::CollapsingHeader("Save")) {
     if (ImGui::Button("SAVE ALL")) {
       SaveAll();
-      // std::vector<std::vector<int>> VertPaths;
-      // MPatchDeco.GetVertexPaths(VertPaths);
-      // std::string ProjName = GetFilanameNoExtension(PathMesh);
-      // std::string LoopsName = ProjName + std::string(".path");
-      // std::string FieldName = ProjName + std::string(".field");
-      // WritePath(LoopsName, VertPaths);
-      // WriteField(FieldName, VertCurv, FaceCurv);
-      // WriteOBJ(ProjName + std::string("_remeshed.obj"), VertPos,
-      // Connectivity); WriteOBJ(ProjName + std::string("_solved.obj"),
-      // SolvedVertPos,
-      //          SolvedConnectivity);
     }
   }
   ImGui::End();
@@ -1398,7 +1438,16 @@ void SetBaseScreenshotRenderMode() {
   drawOriginalBorders = false;
 }
 
+void SetGLRotationUpperLeft() {
+  // rotate current model viwo matrix of 45 degrrex alongy and 45 degrees along
+  // x
+  glRotatef(45, 0, 1, 0);
+  glRotatef(45, 1, 0, 0);
+}
+
 void GLDrawMesh() {
+  if (do_Batch_compute)
+    rendercycles++;
   bool wire = true;
   bool smoothshade = true;
   switch (DrawMeshMode) {
@@ -1420,9 +1469,14 @@ void GLDrawMesh() {
     break;
   }
 
-  if (get_screenshot) {
+  if (get_screenshot_original) {
     SaveOldRenderMode();
     SetBaseScreenshotRenderMode();
+  }
+  if (get_screenshot_boundaries) {
+    SaveOldRenderMode();
+    SetBaseScreenshotRenderMode();
+    showBoundaries = true;
   }
 
   int display_w, display_h;
@@ -1451,6 +1505,9 @@ void GLDrawMesh() {
   trackball.GetView();
 
   trackball.Apply();
+
+  if (get_screenshot_original || get_screenshot_boundaries)
+    SetGLRotationUpperLeft();
 
   glDisable(GL_CULL_FACE);
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -1591,10 +1648,39 @@ void GLDrawMesh() {
     GLDraw::DrawOutline<ScalarType>(SolvedVertPos, SolvedConnectivity,
                                     line_thick);
   }
-  if (get_screenshot) {
-    GetStreenShotOriginalMesh();
-    get_screenshot = false;
+  if (get_screenshot_boundaries) {
+    glFlush();
+    glFinish();
+    GetStreenShotMesh("boundaries");
+    glFinish();
+    get_screenshot_boundaries = false;
+    saved_last_screenshot = true;
     RestoreOldRenderMode();
+    if (do_Batch_compute) {
+      do_Batch_compute = false;
+      ImGui_ImplOpenGL2_Shutdown();
+      ImGui_ImplGlfw_Shutdown();
+      ImGui::DestroyContext();
+      glfwDestroyWindow(window);
+      glfwTerminate();
+      glFlush();
+      glFinish();
+      exit(0);
+      // glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+  }
+  if (get_screenshot_original) {
+    glFlush();
+    glFinish();
+    GetStreenShotMesh("original");
+    glFinish();
+    get_screenshot_original = false;
+    get_screenshot_boundaries = true;
+    RestoreOldRenderMode();
+  }
+  if (do_Batch_compute && (!has_result)) {
+    ProcessAll();
+    //do_Batch_compute = false;
   }
 }
 
@@ -1630,6 +1716,23 @@ int main(int argc, char *argv[]) {
         exit(0);
       continue;
     }
+    if (std::string(argv[i]) == std::string("-batch")) {
+      do_Batch_compute = true;
+    }
+
+    if (std::string(argv[i]) == std::string("-symm")) {
+      UseSymmetry = true;
+    }
+
+    if (std::string(argv[i]) == std::string("-split")) {
+      MPatchDeco.split_removal = true;
+    }
+
+    if (std::string(argv[i]) == std::string("-angle")) {
+      feature_angle = atoi(argv[i + 1]);
+      olfeature_angle = feature_angle;
+      i++;
+    }
   }
 
   if (!has_load_mesh) {
@@ -1664,6 +1767,11 @@ int main(int argc, char *argv[]) {
     ImGui::Render();
 
     GLDrawMesh();
+
+    // if ((saved_last_screenshot)&&(do_Batch_compute)&&(rendercycles>10)) {
+    //   do_Batch_compute=false;
+    //   exit(0);
+    // }
 
     // If you are using this code with non-legacy OpenGL header/contexts
     // (which you should not, prefer using imgui_impl_opengl3.cpp!!), you may
