@@ -72,7 +72,7 @@ public:
   int subsample_factor = 1;
   bool smooth_original_meshing = true;
   bool save_patch_meshes = false;
-  //bool only_updated_patches = false;
+  // bool only_updated_patches = false;
   std::string FileName = "temp";
   // results
   std::vector<ScalarType> TargetFDist;
@@ -86,7 +86,39 @@ public:
   std::vector<int> RemeshedToTargetFaceMap;
   std::vector<Geo::Point3<ScalarType>> RemeshedToTargetBaryMap;
 
+  std::vector<std::vector<int>> PreviosPatchBorders;
   std::vector<int> OnlyPatchIndices;
+
+  void UpdateOnlyPatchIndices(const Geo::PatchManaging<ScalarType> &CurrPMan) {
+    // check current borders versus old borders
+    std::vector<std::vector<int>> NewPatchBorders;
+    CurrPMan.GetAllSidesVertGlobal(NewPatchBorders, false);
+
+    OnlyPatchIndices.clear();
+
+    if (PreviosPatchBorders.size() == 0) {
+      // then OnlyPatchIndices includes all patches
+      for (size_t i = 0; i < CurrPMan.NumPatches(); i++) {
+        OnlyPatchIndices.push_back(i);
+      }
+      PreviosPatchBorders = NewPatchBorders;
+      return;
+    }
+
+    for (size_t i = 0; i < NewPatchBorders.size(); i++) {
+      std::vector<int> CurrTestBorder = NewPatchBorders[i];
+      bool need_update = true;
+      for (size_t j = 0; j < PreviosPatchBorders.size(); j++) {
+        if (CurrTestBorder == PreviosPatchBorders[j]) {
+          need_update = false;
+          break;
+        }
+      }
+      if (need_update)
+        OnlyPatchIndices.push_back(i);
+    }
+    PreviosPatchBorders = NewPatchBorders;
+  }
 
   void MakeParametersCoherent() {
     subsample_factor = std::max(1, subsample_factor);
@@ -165,8 +197,7 @@ public:
 
     if (OnlyPatchIndices.size() > 0) {
       patch_ids = OnlyPatchIndices;
-    } else
-    {
+    } else {
       for (size_t i = 0; i < PManCopy.NumPatches(); i++) {
         patch_ids.push_back(i);
       }
@@ -183,13 +214,13 @@ public:
     if (use_original_meshing) {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
-          CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData,normal_data);
+          CurveSurfacing::LeastSquaresSolverType::LSCG, featureData,
+          normal_data);
     } else {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, iteration, false, patch_ids,
-          CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData,normal_data);
+          CurveSurfacing::LeastSquaresSolverType::LSCG, featureData,
+          normal_data);
     }
     // }
     // } else {
@@ -275,15 +306,17 @@ public:
     PManCopy.UpdateSubPatchPos();
   }
 
-  //void UpdateError(const Geo::PatchManaging<ScalarType> &PManCopy) {
+  // void UpdateError(const Geo::PatchManaging<ScalarType> &PManCopy) {
   void UpdateError(const std::vector<Geo::Point3<ScalarType>> &TargetVertPos,
                    const std::vector<std::vector<int>> &TargetFaces,
                    const std::vector<int> &TargetFaceToPatch) {
-    TargetFDist.clear();
-    RemeshedFDist.clear();
+   
+    //not clear as we should keep previous errors for non updated patches
+    // TargetFDist.clear();
+    // RemeshedFDist.clear();
 
-    TargetNErr.clear();
-    RemeshedNErr.clear();
+    // TargetNErr.clear();
+    // RemeshedNErr.clear();
 
     TargetToRemeshFaceMap.clear();
     TargetToRemeshBaryMap.clear();
@@ -296,8 +329,7 @@ public:
 
     // get the barycenters of target faces
     std::vector<Geo::Point3<ScalarType>> BaryFTar;
-    ComputeFaceBarycenters<ScalarType>(TargetVertPos, TargetFaces,
-                                       BaryFTar);
+    ComputeFaceBarycenters<ScalarType>(TargetVertPos, TargetFaces, BaryFTar);
 
     // then find the mapping
     Geo::ReprojectBasis<ScalarType>(BaryFTar, SolvedVertPos, SolvedFaces,
@@ -308,8 +340,6 @@ public:
     Geo::ReprojectBasis<ScalarType>(BaryFRem, TargetVertPos, TargetFaces,
                                     RemeshedToTargetFaceMap,
                                     RemeshedToTargetBaryMap);
-
-    
 
     // compute the normals
     std::vector<Geo::Point3<ScalarType>> FaceResultNormals, FaceTargetNormals;
@@ -326,10 +356,10 @@ public:
     RemeshedFDist.resize(SolvedFaces.size(), 0);
     RemeshedNErr.resize(SolvedFaces.size(), 0);
     std::set<int> OnlyPatchIndicesSet(OnlyPatchIndices.begin(),
-                                     OnlyPatchIndices.end());
+                                      OnlyPatchIndices.end());
 
     for (size_t i = 0; i < SolvedFaces.size(); i++) {
-      //update only needed patches
+      // update only needed patches
       if (OnlyPatchIndicesSet.size() > 0) {
         int patchIdx = SolvedPatchIndex[i];
         if (OnlyPatchIndicesSet.count(patchIdx) == 0)
@@ -350,11 +380,11 @@ public:
       Geo::Point3<ScalarType> NTarget = FaceTargetNormals[faceIdx];
 
       ScalarType dist = (baryF - targetP).Norm();
-      //RemeshedFDist.push_back(dist);
+      // RemeshedFDist.push_back(dist);
       RemeshedFDist[i] = dist;
-      
+
       ScalarType nErr = Geo::AngleDeg(NResult, NTarget);
-      //RemeshedNErr.push_back(nErr);
+      // RemeshedNErr.push_back(nErr);
       RemeshedNErr[i] = nErr;
     }
 
@@ -399,6 +429,8 @@ public:
     std::map<int, int> ManToCopyPatchIdxRemap;
     PManCopy.CompactEmptyPatches(ManToCopyPatchIdxRemap);
 
+    UpdateOnlyPatchIndices(PManCopy);
+
     // then find the reverse mapping, from compacted to original
     std::map<int, int> CopyToManPatchIdxRemap;
     for (auto &it : ManToCopyPatchIdxRemap) {
@@ -410,19 +442,19 @@ public:
     // restore original positions on split borders
     PManCopy.RestoreOriginalPosOnSplitBorders();
 
-    // map the only patch if needed
-    if (OnlyPatchIndices.size() > 0) {
-      for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
-        int OldIdx = OnlyPatchIndices[i];
-        if (ManToCopyPatchIdxRemap.count(OldIdx) == 0) {
-          std::cerr << "Error: patch index " << OldIdx
-                    << " not found in remapping." << std::endl;
-          exit(0);
-        }
-        int NewIdx = ManToCopyPatchIdxRemap[OldIdx];
-        OnlyPatchIndices[i] = NewIdx;
-      }
-    }
+    // // map the only patch if needed
+    // if (OnlyPatchIndices.size() > 0) {
+    //   for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
+    //     int OldIdx = OnlyPatchIndices[i];
+    //     if (ManToCopyPatchIdxRemap.count(OldIdx) == 0) {
+    //       std::cerr << "0 - Error: patch index " << OldIdx
+    //                 << " not found in remapping." << std::endl;
+    //       exit(0);
+    //     }
+    //     int NewIdx = ManToCopyPatchIdxRemap[OldIdx];
+    //     OnlyPatchIndices[i] = NewIdx;
+    //   }
+    // }
 
     // // smooth if needed
     // if (param.smooth_pdeco_steps > 0) {
@@ -506,7 +538,7 @@ public:
       for (size_t i = 0; i < SolvedPatchIndex.size(); i++) {
         int CurrIdx = SolvedPatchIndex[i];
         if (CopyToManPatchIdxRemap.count(CurrIdx) == 0) {
-          std::cerr << "Error: patch index " << CurrIdx
+          std::cerr << "1 - Error: patch index " << CurrIdx
                     << " not found in remapping." << std::endl;
           exit(0);
         }
@@ -526,11 +558,11 @@ public:
         SolvedPatchIndex[i] = OldIdx;
       }
 
-      //remap back only patch
+      // remap back only patch
       for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
         int CurrIdx = OnlyPatchIndices[i];
         if (CopyToManPatchIdxRemap.count(CurrIdx) == 0) {
-          std::cerr << "Error: patch index " << CurrIdx
+          std::cerr << "2 - Error: patch index " << CurrIdx
                     << " not found in remapping." << std::endl;
           exit(0);
         }
@@ -538,8 +570,7 @@ public:
         OnlyPatchIndices[i] = OldIdx;
       }
 
-      
-      UpdateError(TargetVertPos,TargetFaces,PMan.PData.OriginalFaceToPatch);
+      UpdateError(TargetVertPos, TargetFaces, PMan.PData.OriginalFaceToPatch);
 
       PManCopy.VertPos = TargetVertPos;
       PManCopy.Faces = TargetFaces;
