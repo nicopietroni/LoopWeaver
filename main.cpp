@@ -66,7 +66,7 @@
 #include <mesh_create.h>
 #include <mesh_patch_decomposition.h>
 #include <mesh_subdivide.h>
-#include <space_query/point_grid_3D.h>
+#include <Space_Query/point_grid_3D.h>
 #include <tangent_space_smooth.h>
 #include <triangular_remesh.h>
 #define STB_IMAGE_WRITE_IMPLEMENTATION
