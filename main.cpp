@@ -1,7 +1,12 @@
 // including external gui and GL stuff
 
 #include <GL/glew.h>
-#include <OpenGL/OpenGL.h>
+#ifdef __APPLE__
+    #include <OpenGL/OpenGL.h>
+#else
+    #include <GL/gl.h>
+    #include <GL/glu.h>
+#endif
 #include <cstdio>
 #define SAVE_STATUS_REMOVE
 #include <GLFW/glfw3.h>
