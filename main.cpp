@@ -235,7 +235,7 @@ void InitDefaultParam() {
   MPatchDeco.self_connection_cond = true;
   MPatchDeco.single_sing_cond = false;
   MPatchDeco.match_sing_cond = false;
-  MPatchDeco.prefer_feature_features = false;
+  MPatchDeco.prefer_feature_features = true;
   MPatchDeco.split_removal = false;
   CurveSolv.use_original_meshing = false;
 }
