@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdlib>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -53,7 +54,10 @@ public:
 
   std::vector<Geo::Point3<ScalarType>> &SolvedVertPos;
   std::vector<std::vector<int>> &SolvedFaces;
- 
+
+  std::vector<Geo::Point3<ScalarType>> CurrPmanVPos;
+  std::vector<std::vector<int>> CurrPmanFaces;
+
   CurveSolver<ScalarType> CurveSolv;
   ScalarType AbsMaxErr;
   ScalarType MaxNormErr;
@@ -71,12 +75,17 @@ public:
   // save and restore status
   LoopReconstructionConditionData<ScalarType> DDataOld;
 
-  virtual void SaveStatus() override { DDataOld = DData; }
+  virtual void SaveStatus() override { 
+    DData.CurrSolvedVertPos = SolvedVertPos;
+    DData.CurrSolvedFaces = SolvedFaces;
+    DDataOld = DData;
+  }
 
   virtual void RestoreStatus() override {
     DData = DDataOld;
     SolvedVertPos = DData.CurrSolvedVertPos;
     SolvedFaces = DData.CurrSolvedFaces;
+    
   }
 
   virtual void UpdatePatchIndex(std::map<int, int> &PatchIdxRemap) override {
@@ -241,6 +250,9 @@ public:
     DData.CurrSolvedVertPos = SolvedVertPos;
     DData.CurrSolvedFaces = SolvedFaces;
     DData.CurrSolvedPatchIndex = CurveSolv.SolvedPatchIndex;
+
+    CurrPmanVPos = PatchM.VertPos;
+    CurrPmanFaces = PatchM.Faces;
 
     //consistency checks
     for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {

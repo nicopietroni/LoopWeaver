@@ -162,7 +162,7 @@ bool beier_error_cond = true;
 bool saved_last_screenshot = false;
 int SmoothPathSteps = 20;
 
-ScalarType maxErrRatio = 0.02;
+ScalarType maxErrRatio = 0.01;
 ScalarType OldmaxErrRatio = maxErrRatio;
 
 ScalarType maxNormAngle = 30;
@@ -229,7 +229,15 @@ std::vector<int> SolvedPatchIndex;
 CurveSolver<ScalarType> CurveSolv(Features, SolvedVertPos, SolvedConnectivity,
                                   SolvedPatchIndex);
 
+//BASE CONDITIONS FOR LOOPWEAVER
 void InitDefaultParam() {
+  
+  //not used in the end using same solver at the end
+  CurveSolv.use_original_meshing = false;
+  CurveSolv.resample_paths = true;
+
+  LoopCond.CurveSolv.use_original_meshing = false;
+  LoopCond.CurveSolv.resample_paths = true;
   MPatchDeco.single_boundary_cond = true;
   MPatchDeco.disk_like_cond = true;
   MPatchDeco.self_connection_cond = true;
@@ -237,8 +245,32 @@ void InitDefaultParam() {
   MPatchDeco.match_sing_cond = false;
   MPatchDeco.prefer_feature_features = true;
   MPatchDeco.split_removal = false;
-  CurveSolv.use_original_meshing = false;
+  MPatchDeco.CCAbility =-1;
+  MPatchDeco.MinSides =2;
+  MPatchDeco.MaxSides =5;
+  beier_error_cond=true;
+  loop_recon_cond=true;
+  dynamic_updates=true;
+  MPatchDeco.dynamicSmoothing=true;
 }
+
+// //BASE CONDITIONS FOR QUADWILD
+// void InitDefaultParam() {
+  
+//   CurveSolv.use_original_meshing = false;
+//   MPatchDeco.single_boundary_cond = true;
+//   MPatchDeco.disk_like_cond = true;
+//   MPatchDeco.self_connection_cond = true;
+//   MPatchDeco.single_sing_cond = true;
+//   MPatchDeco.match_sing_cond = true;
+//   MPatchDeco.prefer_feature_features = true;
+//   MPatchDeco.split_removal = false;
+//   MPatchDeco.CCAbility =1;
+//   beier_error_cond=false;
+//   loop_recon_cond=false;
+//   dynamic_updates=false;
+//   MPatchDeco.dynamicSmoothing=false;
+// }
 
 void UpdateFaceColor() {
   // if no error computed force use constant color
@@ -657,29 +689,82 @@ void SmoothPaths() {
 //   }
 // }
 
+// void FinalExtractSurface() {
+//   if (has_paths) {
+
+//     CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
+//     CurveSolv.smooth_pdeco_steps = 0;
+//     CurveSolv.save_patch_meshes = false;
+  
+//     // CurveSolv.only_updated_patches = false;
+//     //CurveSolv.iteration = 10;
+//     CurveSolv.iteration = 10;
+//     CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+
+//     ErrorTarget = CurveSolv.TargetFDist;
+//     std::cout << "Target FDist size: " << ErrorTarget.size()
+//               << std::endl;
+//     std::cout << "Connectivity size: " << Connectivity.size()
+//               << std::endl;
+//     ErrorReconstructed = CurveSolv.RemeshedFDist;
+//     // std::cout << "Reconstructed FDist size: " << ErrorReconstructed.size()
+//     //           << std::endl;
+//     ErrorNormTarget = CurveSolv.TargetNErr;
+//     // std::cout << "Target NErr size: " << ErrorNormTarget.size()
+//     //           << std::endl;
+//     ErrorNormReconstructed = CurveSolv.RemeshedNErr;
+//     // std::cout << "Reconstructed NErr size: " << ErrorNormReconstructed.size()
+//     //           << std::endl;
+//     ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
+//                    SolvedVertNormals);
+
+//     // UpdateMeshFieldNormals();
+//     has_result = true;
+//     showResult = true;
+//     // DrawColorMode = 1;
+
+//     UpdateFaceColor();
+//   }
+// }
+
 void FinalExtractSurface() {
   if (has_paths) {
+    //write last update mesh 
 
-    CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
-    CurveSolv.smooth_pdeco_steps = 0;
-    CurveSolv.save_patch_meshes = false;
+    // WriteOBJ("./test_solved_0.obj", LoopCond.DData.CurrSolvedVertPos,
+    //            LoopCond.DData.CurrSolvedFaces);
+    
+    // WriteOBJ("./test_solved_1.obj", LoopCond.SolvedVertPos,
+    //            LoopCond.SolvedFaces);
+    
+    // WriteOBJ("./test_solved_2.obj", SolvedVertPos,SolvedConnectivity);
+    LoopCond.CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
+
+    // LoopCond.CurveSolv.smooth_pdeco_steps = 0;
+    // LoopCond.CurveSolv.save_patch_meshes = false;
   
-    // CurveSolv.only_updated_patches = false;
-    CurveSolv.iteration = 10;
-    CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+    // LoopCond.CurveSolv.only_updated_patches = false;
+    //LoopCond.CurveSolv.iteration = 10;
 
-    ErrorTarget = CurveSolv.TargetFDist;
-    std::cout << "Target FDist size: " << ErrorTarget.size()
-              << std::endl;
-    std::cout << "Connectivity size: " << Connectivity.size()
-              << std::endl;
-    ErrorReconstructed = CurveSolv.RemeshedFDist;
+    //LoopCond.CurveSolv.iteration = 10;
+    MPatchDeco.PatchManager().VertPos = LoopCond.CurrPmanVPos;
+    MPatchDeco.PatchManager().Faces = LoopCond.CurrPmanFaces;
+    LoopCond.CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+    
+    //WriteOBJ("./test_solved_3.obj", SolvedVertPos,SolvedConnectivity);
+
+    ErrorTarget = LoopCond.CurveSolv.TargetFDist;
+    // std::cout << "Target FDist size: " << ErrorTarget.size()
+    //           << std::endl;
+    // std::cout << "Connectivity size: " << Connectivity.size()
+    //           << std::endl;
+    ErrorReconstructed = LoopCond.CurveSolv.RemeshedFDist;
     // std::cout << "Reconstructed FDist size: " << ErrorReconstructed.size()
     //           << std::endl;
-    ErrorNormTarget = CurveSolv.TargetNErr;
+    ErrorNormTarget = LoopCond.CurveSolv.TargetNErr;
     // std::cout << "Target NErr size: " << ErrorNormTarget.size()
     //           << std::endl;
-    ErrorNormReconstructed = CurveSolv.RemeshedNErr;
+    ErrorNormReconstructed = LoopCond.CurveSolv.RemeshedNErr;
     // std::cout << "Reconstructed NErr size: " << ErrorNormReconstructed.size()
     //           << std::endl;
     ComputeNormals(SolvedVertPos, SolvedConnectivity, SolvedFaceNormals,
@@ -744,6 +829,35 @@ void BatchDecompose() {
   has_paths = true;
 
   // MPatchDeco.RestoreOriginalPosOnSplitBorders();
+}
+
+void ExtractDual() {
+    std::vector<Geo::Point3<ScalarType>> DualVertPos;
+  std::vector<std::vector<int>> DualConnectivity;
+    MPatchDeco.ExtractDualPatches(DualVertPos, DualConnectivity);
+    std::vector<Geo::Point3<ScalarType>> DualEdgeVertPos;
+    std::vector< std::vector<int>> DualEdges;
+    
+    Geo::EdgeMeshFunctions<ScalarType>::ExtractFromMeshBoundary( DualVertPos,DualConnectivity,DualEdgeVertPos,DualEdges);
+    
+    RemoveDuplicatedVert(DualEdgeVertPos, DualEdges);
+    RemoveDuplicatedVert(DualVertPos, DualConnectivity);
+
+    if (UseSymmetry)
+    {
+      std::set<int> MiddleV;
+      MirrorMesh<ScalarType>(DualEdgeVertPos, DualEdges, SymmetryPlane, MiddleV);
+      MirrorMesh<ScalarType>(DualVertPos, DualConnectivity, SymmetryPlane, MiddleV);
+
+    }
+    std::string DualEdge = GetFilanameNoExtension(PathMesh);
+    DualEdge += "_DualEdge.obj";
+    WriteOBJ(DualEdge.c_str(), DualEdgeVertPos, DualEdges);
+
+    std::string DualMesh = GetFilanameNoExtension(PathMesh);
+    DualMesh += "_DualMesh.obj";
+    WriteOBJ(DualMesh.c_str(), DualVertPos, DualConnectivity);
+    
 }
 
 void SmoothField() {
@@ -1095,6 +1209,7 @@ void ProcessAll() {
   if (UseSymmetry)
     ReassembleMesh();
   SaveAll();
+  //ExtractDual();
   get_screenshot_original = true;
 }
 
@@ -1104,7 +1219,7 @@ void SetConditionsBar() {
   ImGui::Checkbox("Loop Reconstruction Condition", &loop_recon_cond);
   if (loop_recon_cond) {
     float maxErrRatiof = maxErrRatio;
-    ImGui::SliderFloat("Reconstruction Error", &maxErrRatiof, 0.01f, 0.1f,
+    ImGui::SliderFloat("Reconstruction Error", &maxErrRatiof, 0.005f, 0.1f,
                        "%.3f", ImGuiSliderFlags_AlwaysClamp);
     maxErrRatio = maxErrRatiof;
     if (OldmaxErrRatio != maxErrRatio) {
@@ -1153,6 +1268,7 @@ void SetConditionsBar() {
     MaxBezierErrorPerc = MaxBezierErrorf;
   }
 
+
   ImGui::Checkbox("Normal Approximation Condition", &normal_approx_cond);
   if (normal_approx_cond) {
 
@@ -1171,6 +1287,11 @@ void SetConditionsBar() {
   //   OldmaxAnglePercentile = maxAnglePercentile;
   // }
 
+  float CCAbilityf = MPatchDeco.CCAbility;
+    ImGui::SliderFloat("CCAbility", &CCAbilityf, -1.0f, 1.0f, "%.1f",
+                       ImGuiSliderFlags_AlwaysClamp);
+    MPatchDeco.CCAbility = CCAbilityf;
+  
   ImGui::Checkbox("Single patch sing", &MPatchDeco.single_sing_cond);
   ImGui::Checkbox("Match sing values", &MPatchDeco.match_sing_cond);
   ImGui::InputInt("Min Sides", &MPatchDeco.MinSides);
@@ -1264,12 +1385,12 @@ void SetToolBar() {
   ImGui::Checkbox("DO Final Extraction", &final_extraction);
 
   if (ImGui::CollapsingHeader("Final Extraction")) {
-    ImGui::Checkbox("Original Mesh", &CurveSolv.use_original_meshing);
-    ImGui::Checkbox("Smooth Original Surface",
+    ImGui::Checkbox("Original Mesh Final  ", &CurveSolv.use_original_meshing);
+    ImGui::Checkbox("Smooth Original Surface Final",
                     &CurveSolv.smooth_original_meshing);
 
-    ImGui::Checkbox("Resample Path", &CurveSolv.resample_paths);
-    ImGui::InputInt("Subsample Factor", &CurveSolv.subsample_factor);
+    ImGui::Checkbox("Resample Path Final", &CurveSolv.resample_paths);
+    ImGui::InputInt("Subsample Factor Final", &CurveSolv.subsample_factor);
 
     CurveSolv.MakeParametersCoherent();
   }
@@ -1312,6 +1433,10 @@ void SetToolBar() {
     // //    ReassembleMesh();
   }
 
+  if (ImGui::Button("Make Dual")) {
+    ExtractDual();
+  }
+  
   if (ImGui::Button("Get Screenshot")) {
     get_screenshot_original = true;
   }
@@ -1386,6 +1511,7 @@ void SetToolBar() {
       if (ImGui::Button("Decompose ")) {
         BatchDecompose();
       }
+
       if (ImGui::Button("Smooth Paths"))
         SmoothPaths();
     }
@@ -1610,8 +1736,8 @@ void GLDrawMesh() {
     GLDraw::GLDrawEdges<ScalarType>(VertPos, Features, sizeBoundariesInput,
                                     Geo::Point3<ScalarType>(1, 0, 1));
 
-    GLDraw::DrawVertices(VertPos, Corners, Geo::Point3<ScalarType>(1, 0, 0),
-                         sizeBoundariesVertsInput);
+    // GLDraw::DrawVertices(VertPos, Corners, Geo::Point3<ScalarType>(1, 0, 0),
+    //                      sizeBoundariesVertsInput);
   }
 
   if (ShowSymmPlane)

@@ -87,38 +87,38 @@ public:
   std::vector<Geo::Point3<ScalarType>> RemeshedToTargetBaryMap;
 
   std::vector<std::vector<int>> PreviosPatchBorders;
-  std::vector<int> OnlyPatchIndices;
+  //std::vector<int> OnlyPatchIndices;
 
-  void UpdateOnlyPatchIndices(const Geo::PatchManaging<ScalarType> &CurrPMan) {
-    // check current borders versus old borders
-    std::vector<std::vector<int>> NewPatchBorders;
-    CurrPMan.GetAllSidesVertGlobal(NewPatchBorders, false);
+  // void UpdateOnlyPatchIndices(const Geo::PatchManaging<ScalarType> &CurrPMan) {
+  //   // check current borders versus old borders
+  //   std::vector<std::vector<int>> NewPatchBorders;
+  //   CurrPMan.GetAllSidesVertGlobal(NewPatchBorders, false);
 
-    OnlyPatchIndices.clear();
+  //   OnlyPatchIndices.clear();
 
-    if (PreviosPatchBorders.size() == 0) {
-      // then OnlyPatchIndices includes all patches
-      for (size_t i = 0; i < CurrPMan.NumPatches(); i++) {
-        OnlyPatchIndices.push_back(i);
-      }
-      PreviosPatchBorders = NewPatchBorders;
-      return;
-    }
+  //   if (PreviosPatchBorders.size() == 0) {
+  //     // then OnlyPatchIndices includes all patches
+  //     for (size_t i = 0; i < CurrPMan.NumPatches(); i++) {
+  //       OnlyPatchIndices.push_back(i);
+  //     }
+  //     PreviosPatchBorders = NewPatchBorders;
+  //     return;
+  //   }
 
-    for (size_t i = 0; i < NewPatchBorders.size(); i++) {
-      std::vector<int> CurrTestBorder = NewPatchBorders[i];
-      bool need_update = true;
-      for (size_t j = 0; j < PreviosPatchBorders.size(); j++) {
-        if (CurrTestBorder == PreviosPatchBorders[j]) {
-          need_update = false;
-          break;
-        }
-      }
-      if (need_update)
-        OnlyPatchIndices.push_back(i);
-    }
-    PreviosPatchBorders = NewPatchBorders;
-  }
+  //   for (size_t i = 0; i < NewPatchBorders.size(); i++) {
+  //     std::vector<int> CurrTestBorder = NewPatchBorders[i];
+  //     bool need_update = true;
+  //     for (size_t j = 0; j < PreviosPatchBorders.size(); j++) {
+  //       if (CurrTestBorder == PreviosPatchBorders[j]) {
+  //         need_update = false;
+  //         break;
+  //       }
+  //     }
+  //     if (need_update)
+  //       OnlyPatchIndices.push_back(i);
+  //   }
+  //   PreviosPatchBorders = NewPatchBorders;
+  // }
 
   void MakeParametersCoherent() {
     subsample_factor = std::max(1, subsample_factor);
@@ -195,13 +195,13 @@ public:
     CurveSurfacing::CurveSurfacingResult result;
     std::vector<int> patch_ids;
 
-    if (OnlyPatchIndices.size() > 0) {
-      patch_ids = OnlyPatchIndices;
-    } else {
+    // if (OnlyPatchIndices.size() > 0) {
+    //   patch_ids = OnlyPatchIndices;
+    // } else {
       for (size_t i = 0; i < PManCopy.NumPatches(); i++) {
         patch_ids.push_back(i);
       }
-    }
+    //}
 
     for (size_t i = 0; i < patch_ids.size(); i++) {
       if (PManCopy.isEmpty(i)) {
@@ -355,16 +355,16 @@ public:
     // RemeshedNErr.clear();
     RemeshedFDist.resize(SolvedFaces.size(), 0);
     RemeshedNErr.resize(SolvedFaces.size(), 0);
-    std::set<int> OnlyPatchIndicesSet(OnlyPatchIndices.begin(),
-                                      OnlyPatchIndices.end());
+    // std::set<int> OnlyPatchIndicesSet(OnlyPatchIndices.begin(),
+    //                                   OnlyPatchIndices.end());
 
     for (size_t i = 0; i < SolvedFaces.size(); i++) {
-      // update only needed patches
-      if (OnlyPatchIndicesSet.size() > 0) {
-        int patchIdx = SolvedPatchIndex[i];
-        if (OnlyPatchIndicesSet.count(patchIdx) == 0)
-          continue;
-      }
+      // // update only needed patches
+      // if (OnlyPatchIndicesSet.size() > 0) {
+      // //   int patchIdx = SolvedPatchIndex[i];
+      // //   if (OnlyPatchIndicesSet.count(patchIdx) == 0)
+      // //     continue;
+      // }
       Geo::Point3<ScalarType> baryF = BaryFRem[i];
       int faceIdx = RemeshedToTargetFaceMap[i];
       Geo::Point3<ScalarType> baryCoord = RemeshedToTargetBaryMap[i];
@@ -394,11 +394,11 @@ public:
     TargetNErr.resize(TargetFaces.size(), 0);
 
     for (size_t i = 0; i < TargetFaces.size(); i++) {
-      if (OnlyPatchIndicesSet.size() > 0) {
-        int patchIdx = TargetFaceToPatch[i];
-        if (OnlyPatchIndicesSet.count(patchIdx) == 0)
-          continue;
-      }
+      // if (OnlyPatchIndicesSet.size() > 0) {
+      //   int patchIdx = TargetFaceToPatch[i];
+      //   if (OnlyPatchIndicesSet.count(patchIdx) == 0)
+      //     continue;
+      // }
       Geo::Point3<ScalarType> baryF = BaryFTar[i];
       int faceIdx = TargetToRemeshFaceMap[i];
       Geo::Point3<ScalarType> baryCoord = TargetToRemeshBaryMap[i];
@@ -429,7 +429,8 @@ public:
     std::map<int, int> ManToCopyPatchIdxRemap;
     PManCopy.CompactEmptyPatches(ManToCopyPatchIdxRemap);
 
-    UpdateOnlyPatchIndices(PManCopy);
+    //UpdateOnlyPatchIndices(PManCopy);
+    //OnlyPatchIndices.clear();
 
     // then find the reverse mapping, from compacted to original
     std::map<int, int> CopyToManPatchIdxRemap;
@@ -559,21 +560,42 @@ public:
       }
 
       // remap back only patch
-      for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
-        int CurrIdx = OnlyPatchIndices[i];
-        if (CopyToManPatchIdxRemap.count(CurrIdx) == 0) {
-          std::cerr << "2 - Error: patch index " << CurrIdx
-                    << " not found in remapping." << std::endl;
-          exit(0);
-        }
-        int OldIdx = CopyToManPatchIdxRemap[CurrIdx];
-        OnlyPatchIndices[i] = OldIdx;
-      }
+      // for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
+      //   int CurrIdx = OnlyPatchIndices[i];
+      //   if (CopyToManPatchIdxRemap.count(CurrIdx) == 0) {
+      //     std::cerr << "2 - Error: patch index " << CurrIdx
+      //               << " not found in remapping." << std::endl;
+      //     exit(0);
+      //   }
+      //   int OldIdx = CopyToManPatchIdxRemap[CurrIdx];
+      //   OnlyPatchIndices[i] = OldIdx;
+      // }
+
+      //WriteOBJ("./target.obj", TargetVertPos, TargetFaces);
 
       UpdateError(TargetVertPos, TargetFaces, PMan.PData.OriginalFaceToPatch);
 
+      //print the max error
+      ScalarType maxFTar = 0;
+      for (size_t i = 0; i < TargetFDist.size(); i++) {
+        if (TargetFDist[i] > maxFTar)
+          maxFTar = TargetFDist[i];
+      }
+      ScalarType maxFRem = 0;
+      for (size_t i = 0; i < RemeshedFDist.size(); i++) {
+        if (RemeshedFDist[i] > maxFRem)
+          maxFRem = RemeshedFDist[i];
+      }
+      // std::cout << "DE Test: Max FDist Target: " << maxFTar << std::endl;
+      // std::cout << "DE Test: Max FDist Remeshed: " << maxFRem << std::endl;
+
       PManCopy.VertPos = TargetVertPos;
       PManCopy.Faces = TargetFaces;
+
+
+      // WriteOBJ("./test_solved.obj", SolvedVertPos,
+      //          SolvedFaces);
+
       return true;
     } else {
       if (writeDebug) {
