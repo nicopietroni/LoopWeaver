@@ -65,7 +65,7 @@ public:
 public:
   // parameters
   int smooth_pdeco_steps = 20;
-  int iteration = 5;
+  int iteration = 10;
   bool writeDebug = false;
   bool use_original_meshing = true;
   bool resample_paths = true;
