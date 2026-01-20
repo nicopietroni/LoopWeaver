@@ -162,7 +162,7 @@ bool beier_error_cond = true;
 bool saved_last_screenshot = false;
 int SmoothPathSteps = 20;
 
-ScalarType maxErrRatio = 0.01;
+ScalarType maxErrRatio = 0.005;
 ScalarType OldmaxErrRatio = maxErrRatio;
 
 ScalarType maxNormAngle = 30;
@@ -236,7 +236,7 @@ void InitDefaultParam() {
   CurveSolv.use_original_meshing = false;
   CurveSolv.resample_paths = true;
 
-  LoopCond.CurveSolv.use_original_meshing = false;
+  LoopCond.CurveSolv.use_original_meshing = true;
   LoopCond.CurveSolv.resample_paths = true;
   MPatchDeco.single_boundary_cond = true;
   MPatchDeco.disk_like_cond = true;
@@ -246,8 +246,8 @@ void InitDefaultParam() {
   MPatchDeco.prefer_feature_features = true;
   MPatchDeco.split_removal = false;
   MPatchDeco.CCAbility =-1;
-  MPatchDeco.MinSides =2;
-  MPatchDeco.MaxSides =5;
+  MPatchDeco.MinSides =3;
+  MPatchDeco.MaxSides =6;
   beier_error_cond=true;
   loop_recon_cond=true;
   dynamic_updates=true;
@@ -738,7 +738,10 @@ void FinalExtractSurface() {
     //            LoopCond.SolvedFaces);
     
     // WriteOBJ("./test_solved_2.obj", SolvedVertPos,SolvedConnectivity);
+    LoopCond.CurveSolv.subsample_factor = 1;
+    LoopCond.CurveSolv.use_previous_solution_as_initial = false;
     LoopCond.CurveSolv.FileName = GetFilanameNoExtension(PathMesh);
+
 
     // LoopCond.CurveSolv.smooth_pdeco_steps = 0;
     // LoopCond.CurveSolv.save_patch_meshes = false;
