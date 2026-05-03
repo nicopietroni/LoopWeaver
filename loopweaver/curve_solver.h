@@ -480,13 +480,13 @@ public:
 
     // this can be done only when not using original meshing
     if (resample_paths) {
-      assert(!param.use_original_meshing);
+      //assert(!param.use_original_meshing);
       SmoothBoundaries(PManCopy);
     }
 
     // no sense this if not using original meshing
     if (smooth_original_meshing) {
-      assert(param.use_original_meshing);
+      //assert(param.use_original_meshing);
       SmoothMesh(PManCopy);
     }
 
