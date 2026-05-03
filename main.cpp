@@ -679,7 +679,10 @@ void FinalExtractSurface() {
       // LoopCond.CurveSolv.use_original_meshing =
       // use_original_meshing_for_final_extraction;
       // LoopCond.CurveSolv.save_patch_meshes = true;
+      ScalarType OldRemeshFactor = LoopCond.CurveSolv.remesh_facctor;
+      LoopCond.CurveSolv.remesh_facctor = -1;
       LoopCond.CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+      LoopCond.CurveSolv.remesh_facctor = OldRemeshFactor;
 
       ErrorTarget = LoopCond.CurveSolv.TargetFDist;
       // std::cout << "Target FDist size: " << ErrorTarget.size()
@@ -696,7 +699,10 @@ void FinalExtractSurface() {
     } else {
       // CurveSolv.use_original_meshing =
       // use_original_meshing_for_final_extraction;
+      ScalarType OldRemeshFactor = CurveSolv.remesh_facctor;
+      CurveSolv.remesh_facctor = -1;
       CurveSolv.UpdateSolvedMesh(MPatchDeco.PatchManager());
+      CurveSolv.remesh_facctor = OldRemeshFactor;
       ErrorTarget = CurveSolv.TargetFDist;
       // std::cout << "Target FDist size: " << ErrorTarget.size()
       //           << std::endl;
