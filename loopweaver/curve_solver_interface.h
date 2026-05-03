@@ -11,6 +11,7 @@
 #include <field_graph/patch_decomposer.h>
 #include <field_graph/patch_optimize.h>
 #include <iostream>
+#include <ostream>
 #include <reproject_mesh.h>
 #include <string>
 #include <triangular_remesh.h>
@@ -396,16 +397,18 @@ template <class ScalarType> struct CurveSolverInterface {
     // iteration= 1;
     // if (has_features) {
 
+   std::cout<<"DEDE"<<std::endl;
+   exit(0);
     if (use_original_meshing) {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
           CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData); //,normal_data);
+          featureData,normal_data,-1);
     } else {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, iteration, false, patch_ids,
           CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData); //,normal_data);
+          featureData,normal_data);
     }
     // }
     // } else {

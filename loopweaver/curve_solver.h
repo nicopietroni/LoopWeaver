@@ -65,15 +65,15 @@ public:
 public:
   // parameters
   int smooth_pdeco_steps = 20;
-  int iteration = 10;
+  int iteration = 5;
   bool writeDebug = false;
   bool use_original_meshing = true;
   bool resample_paths = true;
   int subsample_factor = 1;
   bool smooth_original_meshing = true;
   bool save_patch_meshes = false;
-  bool use_previous_solution_as_initial = true;
-
+  bool use_previous_solution_as_initial = false;
+  ScalarType remesh_facctor = -1;
   // bool only_updated_patches = false;
   std::string FileName = "temp";
   // results
@@ -212,18 +212,20 @@ public:
         exit(0);
       }
     }
-
+    std::cout << "DE DE Test " << std::endl;
     if (use_original_meshing) {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
           CurveSurfacing::LeastSquaresSolverType::LSCG, featureData,
-          normal_data);
+          normal_data, remesh_facctor);
     } else {
       result = CurveSurfacing::curve_surfacing_core(
           curves_data, cycles_data, iteration, false, patch_ids,
           CurveSurfacing::LeastSquaresSolverType::LSCG, featureData,
           normal_data);
     }
+
+    std::cout << "DE DE Test 1 " << std::endl;
     // }
     // } else {
     //   if (use_original_meshing) {
@@ -312,10 +314,10 @@ public:
   void UpdateError(const std::vector<Geo::Point3<ScalarType>> &TargetVertPos,
                    const std::vector<std::vector<int>> &TargetFaces,
                    const std::vector<int> &TargetFaceToPatch) {
-   
-    //not clear as we should keep previous errors for non updated patches
-    // TargetFDist.clear();
-    // RemeshedFDist.clear();
+
+    // not clear as we should keep previous errors for non updated patches
+    //  TargetFDist.clear();
+    //  RemeshedFDist.clear();
 
     // TargetNErr.clear();
     // RemeshedNErr.clear();
@@ -432,9 +434,9 @@ public:
     std::map<int, int> ManToCopyPatchIdxRemap;
     PManCopy.CompactEmptyPatches(ManToCopyPatchIdxRemap);
 
-    UpdateOnlyPatchIndices(PManCopy);
-    if (!use_previous_solution_as_initial)
-    OnlyPatchIndices.clear();
+    // UpdateOnlyPatchIndices(PManCopy);
+    // if (!use_previous_solution_as_initial)
+    // OnlyPatchIndices.clear();
 
     // then find the reverse mapping, from compacted to original
     std::map<int, int> CopyToManPatchIdxRemap;
@@ -529,6 +531,7 @@ public:
       std::cout << "*** DONE ***" << std::endl;
 
     // Check if surfacing was successful
+    // std::cout<<"Here 0"<<std::endl;
     if (result.success) {
       if (writeDebug)
         std::cout << "\n=== SURFACING SUCCESSFUL ===\n";
@@ -536,7 +539,13 @@ public:
       // reassemble output mesh
       // ReassembleOutputMesh(result, VertPos, Faces,
       // output.RemeshedPatchIndex);
+      //    std::cout<<"Here 1"<<std::endl;
+
       ReassembleOutputMesh(result);
+      //    std::cout << "Saving "<<std::endl;
+
+      //   // exit(0);
+      std::cout << "Here 2" << std::endl;
 
       // std::cout << "Test1" << std::endl;
       // remap the indexes
@@ -562,8 +571,9 @@ public:
         // then map to original patch index
         SolvedPatchIndex[i] = OldIdx;
       }
+      std::cout << "Here 3" << std::endl;
 
-      //remap back only patch
+      // remap back only patch
       for (size_t i = 0; i < OnlyPatchIndices.size(); i++) {
         int CurrIdx = OnlyPatchIndices[i];
         if (CopyToManPatchIdxRemap.count(CurrIdx) == 0) {
@@ -575,11 +585,20 @@ public:
         OnlyPatchIndices[i] = OldIdx;
       }
 
-      //WriteOBJ("./target.obj", TargetVertPos, TargetFaces);
+      // WriteOBJ("./target.obj", TargetVertPos, TargetFaces);
+
+      // std::cout<<"Here 4"<<std::endl;
+      
+      // std::cout << "ESCILO!" << std::endl;
+      // WriteOBJ("./target.obj", TargetVertPos, TargetFaces);
+      // WriteOBJ("./solved.obj", SolvedVertPos, SolvedFaces);
+      std::cout << "Computing Error" << std::endl;
+      //exit(0);
 
       UpdateError(TargetVertPos, TargetFaces, PMan.PData.OriginalFaceToPatch);
+      std::cout << "Here 4.5" << std::endl;
 
-      //print the max error
+      // print the max error
       ScalarType maxFTar = 0;
       for (size_t i = 0; i < TargetFDist.size(); i++) {
         if (TargetFDist[i] > maxFTar)
@@ -596,9 +615,10 @@ public:
       PManCopy.VertPos = TargetVertPos;
       PManCopy.Faces = TargetFaces;
 
-
       // WriteOBJ("./test_solved.obj", SolvedVertPos,
       //          SolvedFaces);
+
+      // std::cout<<"Here 5"<<std::endl;
 
       return true;
     } else {

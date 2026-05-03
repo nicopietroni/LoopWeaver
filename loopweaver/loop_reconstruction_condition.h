@@ -41,6 +41,7 @@ template <class ScalarType>
 class LoopReconstructionCondition : public Geo::PatchCondition<ScalarType> {
 
 public:
+  //int curr_step=0;
   std::vector<std::pair<int, int>> &Features;
   bool writeDebug;
   
@@ -88,45 +89,21 @@ public:
     
   }
 
-  virtual void UpdatePatchIndex(std::map<int, int> &PatchIdxRemap) override {
-
-    // std::cout << "Updating patch indices in LoopReconstructionCondition"
-    //           << std::endl;
-    // exit(0);
-    for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
-      int OldPatchIDx = DData.CurrSolvedPatchIndex[i];
+  // virtual void UpdatePatchIndex(std::map<int, int> &PatchIdxRemap) override {
+  //   std::cout<<"Size Mapping: "<<PatchIdxRemap.size()<<std::endl;
+  //   for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
+  //     int OldPatchIDx = DData.CurrSolvedPatchIndex[i];
       
-      if (PatchIdxRemap.find(OldPatchIDx) == PatchIdxRemap.end())
-      {
-        std::cerr << "Error: Old patch index " << OldPatchIDx
-                  << " not found in remap." << std::endl;
-        exit(0);
-      }
-      int NewPatchIDx = PatchIdxRemap[OldPatchIDx];
-      DData.CurrSolvedPatchIndex[i] = NewPatchIDx;
-    }
-    // std::vector<bool> New_PerPatchIsSolveable;
-
-    // for (int i = 0; i < DData.PerPatchIsSolveable.size(); i++) {
-    //   int OldPatchIDx = i;
-
-    //   // if no index, was an empty patcj
-    //   if (PatchIdxRemap.count(OldPatchIDx) == 0)
-    //     continue;
-
-    //   int NewPatchIDx = PatchIdxRemap[OldPatchIDx];
-
-    //   // allocate if needed
-    //   if (New_PerPatchIsSolveable.size() < (NewPatchIDx + 1)) {
-    //     New_PerPatchIsSolveable.resize(NewPatchIDx + 1);
-    //   }
-
-    //   New_PerPatchIsSolveable[NewPatchIDx] =
-    //   DData.PerPatchIsSolveable[OldPatchIDx];
-    // }
-
-    // DData.PerPatchIsSolveable = New_PerPatchIsSolveable;
-  }
+  //     if (PatchIdxRemap.find(OldPatchIDx) == PatchIdxRemap.end())
+  //     {
+  //       std::cerr << "Error: Old patch index " << OldPatchIDx
+  //                 << " not found in remap." << std::endl;
+  //       exit(0);
+  //     }
+  //     int NewPatchIDx = PatchIdxRemap[OldPatchIDx];
+  //     DData.CurrSolvedPatchIndex[i] = NewPatchIDx;
+  //   }
+  // }
 
   bool SolvablePatch(const Geo::PatchManaging<ScalarType> &PatchM,
                      const int &IndexPatch) const {
@@ -179,13 +156,32 @@ public:
 
   bool UpdateGlobalData(const Geo::PatchManaging<ScalarType> &PatchM) override {
     // return true;
+    // curr_step++;
+    // std::vector<Geo::Point3<ScalarType>> PatchPos;
+    // std::vector<std::vector<int>> PatchFaces;
+    // PatchM.ComposeMeshFromPatches(PatchPos, PatchFaces);
+    // std::vector<Geo::Point3<ScalarType>> EdgeVertPos;
+    // std::vector<std::vector<int>> ConnectivityEdges;
+    // Geo::EdgeMeshFunctions<ScalarType>::ExtractFromMeshBoundary(PatchPos,PatchFaces,
+    //                                                             EdgeVertPos,ConnectivityEdges);
+
+    // WriteOBJ("./sequence/test_edge_step_"+std::to_string(curr_step)+".obj", EdgeVertPos,
+    //            ConnectivityEdges);
+    
+    // if (curr_step<10)
+    //   return false;
+
     if (writeDebug)
       std::cout << "UPDATING GLOBAL DATA" << std::endl;
 
     bool InSolvable = true;
     for (size_t i = 0; i < PatchM.NumPatches(); i++) {
       if (PatchM.isEmpty(i))
+      {
+        //std::cout << "WARNING: empty patch " << i << std::endl;
         continue;
+        //exit(0);
+      }
 
       InSolvable &= SolvablePatch(PatchM, i);
     }
@@ -222,7 +218,15 @@ public:
     //   CurveSolv.OnlyPatchIndices = PatchM.GetLastUpdatedPatches();
     
     bool success = CurveSolv.UpdateSolvedMesh(PatchM);
-    
+
+
+    // //write the reconstruction mesh and put the step at the end of the name
+    // WriteOBJ("./sequence/test_target_step_"+std::to_string(curr_step)+".obj", PatchM.VertPos,
+    //             PatchM.Faces);
+    // WriteOBJ("./sequence/test_solved_step_"+std::to_string(curr_step)+".obj", SolvedVertPos,
+    //            SolvedFaces);
+   
+
     done_first_global_update=true;
     //assert(Res.TargetFDist.size() == PatchM.Faces.size());
     assert(CurveSolv.TargetFDist.size() == PatchM.Faces.size());
@@ -262,6 +266,7 @@ public:
         exit(0);
       }
     }
+    
     return true;
   }
 
@@ -277,6 +282,10 @@ public:
       assert(IndexF < DData.ErrorTarget.size());
       FaceV.push_back(DData.ErrorTarget[IndexF]);
     }
+  }
+
+  virtual bool NeedSaveStatus()const override {
+    return true;
   }
 
   bool IsCorrect(const Geo::PatchManaging<ScalarType> &PatchM,
@@ -298,7 +307,7 @@ public:
       if (FaceV[i] >= AbsMaxErr)
         return false;
     }
-
+    
     for (size_t i = 0; i < DData.CurrSolvedPatchIndex.size(); i++) {
       int IndexP = DData.CurrSolvedPatchIndex[i];
       if (PatchM.isEmpty(IndexP)) {
@@ -350,8 +359,7 @@ public:
                            const int &IndexPatch) const
   {
     int out_of_bound_faces0 = 0;
-    for (size_t i = 0;
-           i < PatchM.PData.SubPatchFacesToOriginal[IndexPatch].size(); i++) {
+    for (size_t i = 0;i < PatchM.PData.SubPatchFacesToOriginal[IndexPatch].size(); i++) {
         int IndexF = PatchM.PData.SubPatchFacesToOriginal[IndexPatch][i];
         assert(IndexF >= 0);
         assert(IndexF < DData.ErrorTarget.size());
