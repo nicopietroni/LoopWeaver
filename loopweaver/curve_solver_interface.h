@@ -661,6 +661,9 @@ public:
     Geo::PatchManaging<ScalarType> PManCopy = PMan;
     std::map<int, int> PatchIdxRemap0;
     PManCopy.CompactEmptyPatches(PatchIdxRemap0);
+
+    std::vector<Geo::Point3<ScalarType>> VertPosTest;
+    std::vector<std::vector<int>> FacesTest;
     
     std::vector<int> ProcessPatchIndices;
     for (size_t i = 0; i < PManCopy.NumPatches(); i++) {

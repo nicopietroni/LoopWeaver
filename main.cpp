@@ -374,7 +374,7 @@ void UpdateAfterRemesh() {
 
 int ero_steps = 3;
 int dil_steps = 3;
-ScalarType feature_angle = 45; // 30;
+ScalarType feature_angle = 50;//45; // 30;
 ScalarType olfeature_angle = feature_angle;
 
 void UpdateFeatures() {
@@ -697,7 +697,7 @@ void FinalExtractSurface() {
       //           << std::endl;
       ErrorNormReconstructed = LoopCond.CurveSolv.RemeshedNErr;
     } else {
-      // CurveSolv.use_original_meshing =
+      CurveSolv.use_original_meshing = true;
       // use_original_meshing_for_final_extraction;
       ScalarType OldRemeshFactor = CurveSolv.remesh_facctor;
       CurveSolv.remesh_facctor = -1;

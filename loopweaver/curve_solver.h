@@ -501,7 +501,12 @@ public:
       std::cout << "*** SAVING CURVE CYCLE DATA ***" << std::endl;
 
     std::vector<std::pair<int, int>> FeaturesRemap = Features;
-
+    
+    std::vector<Geo::Point3<ScalarType>> VertPosTest;
+    std::vector<std::vector<int>> FacesTest;
+    PManCopy.ComposeMeshFromPatches(VertPosTest, FacesTest);
+    WriteOBJ("./debug_compact.obj", VertPosTest, FacesTest);
+    
     Geo::CurveCycles<ScalarType>::SaveCurveCycleData(
         PManCopy, FileName.c_str(), FeaturesRemap, subsample_factor);
 
