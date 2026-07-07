@@ -8,15 +8,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ==============================
-# ===== USER SWITCHES (EDIT ONLY THESE) =====
+# Build mode
 # ==============================
-set(BUILD_MODE "Release")     # Debug | Release
-set(ENABLE_SANITIZER OFF)      # ON | OFF
-
-# ==============================
-# Apply build mode
-# ==============================
-set(CMAKE_BUILD_TYPE ${BUILD_MODE} CACHE STRING "" FORCE)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Build type")
+endif()
+option(ENABLE_SANITIZER "Enable sanitizers" OFF)
 
 message(STATUS "Build mode: ${CMAKE_BUILD_TYPE}")
 message(STATUS "Sanitizer: ${ENABLE_SANITIZER}")
@@ -39,7 +36,6 @@ if(ENABLE_SANITIZER)
     -fsanitize-address-use-after-scope
     -fno-optimize-sibling-calls
   )
-
   add_link_options(
     -fsanitize=address,undefined
   )
@@ -48,33 +44,28 @@ endif()
 # ==============================
 # Paths
 # ==============================
-set(IMGUI_DIR "/Users/134750/Desktop/imgui/" CACHE INTERNAL "")
-set(TRACEFIELD_DIR "../TracingFieldLib/include" CACHE INTERNAL "")
-set(GLDRAW_DIR "../TracingFieldLib/include/GLFunctions/" CACHE INTERNAL "")
-set(EIGENPATH "../TracingFieldLib/external_lib/eigen-3.4.0/" CACHE INTERNAL "")
-set(IGLLIB "../TracingFieldLib/external_lib/libigl/include/" CACHE INTERNAL "")
+set(IMGUI_DIR "../tools/imgui")
+set(TRACEFIELD_DIR "../CurveSurfacingLib/TracingFieldLib/include")
+set(EIGENPATH "../CurveSurfacingLib/TracingFieldLib/external_lib/eigen-3.4.0")
+set(IGLLIB "../libigl/include")
+set(CURVE_SURFACING_CORE_DIR "${CMAKE_SOURCE_DIR}/../Refactor/CurveSurfacingLib-V2/Curve-Surfacing-Core")
 
-include_directories(
-    ${TRACEFIELD_DIR}
-    ${IMGUI_DIR}
-    ${IMGUI_DIR}/backends
-    /opt/homebrew/include
-    ${EIGENPATH}
-    /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/include/curve_surfacing
-    ${IGLLIB}
-)
-
-#include(libigl)
-#igl_include(restricted triangle)
+set(LUT_PATH "../../../include/Lut.txt")
+add_definitions(-DLUT_PATH=\"${LUT_PATH}\")
 
 # ==============================
-# Find GLEW
+# Dependencies
 # ==============================
-find_library(GLEW_LIB NAMES GLEW glew PATHS /opt/homebrew/lib /usr/local/lib)
-find_path(GLEW_INCLUDE_DIR GL/glew.h PATHS /opt/homebrew/include /usr/local/include)
+find_package(OpenGL REQUIRED)
+find_package(GLEW REQUIRED)
+find_package(glfw3 REQUIRED)
 
-if(NOT GLEW_LIB OR NOT GLEW_INCLUDE_DIR)
-  message(FATAL_ERROR "GLEW not found")
+# Use local Eigen instead of system package
+if(NOT TARGET Eigen3::Eigen)
+    add_library(Eigen3::Eigen INTERFACE IMPORTED)
+    set_target_properties(Eigen3::Eigen PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/${EIGENPATH}"
+    )
 endif()
 
 # ==============================
@@ -91,27 +82,35 @@ add_executable(${PROJECT_NAME}
     ${IMGUI_DIR}/backends/imgui_impl_opengl2.cpp
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${GLEW_INCLUDE_DIR})
-
 # ==============================
-# Static Libraries
+# Includes
 # ==============================
-target_link_libraries(${PROJECT_NAME}
-   /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/build/libcurvesurfacing-core.a
-   /Users/134750/Desktop/00_GeoProjects/TracingFieldLib/external_lib/TetGen-1.4.3/libtet.a
-   /Users/134750/Desktop/00_GeoProjects/CurveSurfacingLib/Curve-Surfacing-Core/build/_deps/triangle-build/libtriangle.a
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${TRACEFIELD_DIR}
+    ${IMGUI_DIR}
+    ${IMGUI_DIR}/backends
+    ${CURVE_SURFACING_CORE_DIR}/include
+    ${CURVE_SURFACING_CORE_DIR}/include/curve_surfacing
+    ${CURVE_SURFACING_CORE_DIR}/include/curve_surfacing/CycleDiscovery/tetgen
+    ${CURVE_SURFACING_CORE_DIR}/build/_deps/triangle-src
+    ${CURVE_SURFACING_CORE_DIR}/build/_deps/triangle-build
+    ${CURVE_SURFACING_CORE_DIR}/external/Directional/include
+    ${IGLLIB}
 )
 
+# Ensure Eigen headers are available (must come before other includes)
+target_include_directories(${PROJECT_NAME} BEFORE PRIVATE ${EIGENPATH})
+
 # ==============================
-# System + OpenGL
+# Link libraries
+# no libcurvesurfacing-core.a — headers self-include their .cpp files
 # ==============================
 target_link_libraries(${PROJECT_NAME}
-    ${GLEW_LIB}
-    "-framework OpenGL"
-    "-framework Cocoa"
-    "-framework IOKit"
-    "-framework CoreVideo"
-    "-L/opt/homebrew/lib"
-    "-lglfw"
+    ${CURVE_SURFACING_CORE_DIR}/build/libtetgen.a
+    ${CURVE_SURFACING_CORE_DIR}/build/_deps/triangle-build/libtriangle.a
+    OpenGL::GL
+    OpenGL::GLU
+    GLEW::GLEW
+    glfw
+    Eigen3::Eigen
 )
-# ==============================

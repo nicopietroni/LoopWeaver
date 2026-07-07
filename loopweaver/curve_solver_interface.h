@@ -5,6 +5,17 @@
 #include <app_loader.h>
 #include <cassert>
 #include <cstddef>
+
+#ifdef POLYVECTOR_FIELD
+#  undef POLYVECTOR_FIELD
+#endif
+#ifdef RAW_FIELD
+#  undef RAW_FIELD
+#endif
+#ifdef POWER_FIELD
+#  undef POWER_FIELD
+#endif
+
 #include <curve_surfacing_core.h>
 #include <eigen_interface.h>
 #include <field_graph/curve_cycles.h>
@@ -399,16 +410,18 @@ template <class ScalarType> struct CurveSolverInterface {
 
    std::cout<<"DEDE"<<std::endl;
    exit(0);
-    if (use_original_meshing) {
-      result = CurveSurfacing::curve_surfacing_core(
-          curves_data, cycles_data, patch_meshes, iteration, false, patch_ids,
-          CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData,normal_data,-1);
-    } else {
-      result = CurveSurfacing::curve_surfacing_core(
-          curves_data, cycles_data, iteration, false, patch_ids,
-          CurveSurfacing::LeastSquaresSolverType::LSCG,
-          featureData,normal_data);
+    {
+      CurveSurfacing::CurveSurfacingParams params;
+      params.iterations     = iteration;
+      params.enable_logging = false;
+      params.patch_ids      = patch_ids;
+      params.solver_type    = CurveSurfacing::LeastSquaresSolverType::LSCG;
+      if (!featureData.empty())               params.feature_edges = featureData;
+      if (!normal_data.empty())               params.normal_data   = normal_data;
+      if (use_original_meshing) {
+        params.patches_data = patch_meshes;
+      }
+      result = CurveSurfacing::curve_surfacing_core(curves_data, cycles_data, params);
     }
     // }
     // } else {
