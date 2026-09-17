@@ -1,0 +1,15 @@
+Symmetry: 1
+Sharp Angle: 45
+Use Curvature Change Nodes: 0
+Sampling Density: 10000
+dynamic_updates: 1
+Loop Reconstruction Condition: 1
+ - maxErrRatio: 0.020000
+ - maxNormAngle: 30.000000
+ - maxAnglePercentile: 0.200000
+Bezier Error Condition: 1
+ - MaxBezierErrorPerc: 2.000000
+Side Curvature Condition: 1
+ - MaxSideSumAngle: 180.000000
+Normal Approximation Condition: 0
+Edge Mesh Length: 260.680281

@@ -1,0 +1,4 @@
+Field: 39 ms
+Tracing: 8458 ms
+Surfacing: 16734 ms
+Total: 25231 ms
