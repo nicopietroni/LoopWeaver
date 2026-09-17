@@ -943,6 +943,11 @@ void InitGLFW_Window() {
     exit(0);
   }
 
+  // In batch mode the window is only used as an offscreen render target for
+  // the output screenshots, so keep it hidden
+  if (do_Batch_compute)
+    glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+
   window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL2 example", NULL,
                             NULL);
 

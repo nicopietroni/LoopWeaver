@@ -2,7 +2,6 @@
 
 set -m   # enable job control
 
-# Kill entire process group on Ctrl+C or termination
 cleanup() {
     echo "🛑 Batch interrupted, killing all child processes"
     kill -- -$$ 2>/dev/null
@@ -10,7 +9,6 @@ cleanup() {
 }
 trap cleanup INT TERM
 
-# Check argument
 if [ $# -ne 1 ]; then
     echo "Usage: $0 <folder>"
     exit 1
@@ -18,26 +16,42 @@ fi
 
 FOLDER="$1"
 
-# Check folder exists
 if [ ! -d "$FOLDER" ]; then
     echo "Error: '$FOLDER' is not a directory"
     exit 1
 fi
 
-# Settings
-TIMEOUT=1800              # seconds (30 minutes)
+# Locate the loop_weaver executable relative to this script
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BUILD_DIR="$SCRIPT_DIR/../build"
+WEAVER="$BUILD_DIR/loop_weaver"
+
+if [ ! -x "$WEAVER" ]; then
+    echo "Error: loop_weaver executable not found at $WEAVER (build it first)"
+    exit 1
+fi
+
+# Resolve the input folder to an absolute path, then work from build
+# so all outputs are created there
+FOLDER="$(cd "$FOLDER" && pwd)"
+cd "$BUILD_DIR"
+
+TIMEOUT=1200
 TIMEOUT_LOG="timeouts.txt"
+CALL_DIR="$(pwd)"
+DONE_DIR="$CALL_DIR/done"
+
+mkdir -p "$DONE_DIR"
 
 echo "=== Run started at $(date) ===" >> "$TIMEOUT_LOG"
 
-# Loop over all .obj files in the folder
 shopt -s nullglob
 for file in "$FOLDER"/*.obj; do
     echo "Processing: $file"
 
     start_time=$(date +%s)
-    timeout --foreground --kill-after=10s "$TIMEOUT" \
-        ./loop_weaver "$file" -batch -angle 180
+    gtimeout --kill-after=10s "$TIMEOUT" \
+        "$WEAVER" "$file" -error_setup 1 -batch -angle 180
 
     status=$?
     end_time=$(date +%s)
@@ -52,7 +66,19 @@ for file in "$FOLDER"/*.obj; do
         echo "$(date '+%Y-%m-%d %H:%M:%S')  ERROR    $file  (${elapsed}s)" >> "$TIMEOUT_LOG"
         continue
     fi
-    echo "✅ Success: $file (${elapsed}s)"
+
+    # Move all output files whose name contains the input stem
+    stem=$(basename "$file" .obj)
+    moved=0
+    for out in "$CALL_DIR"/*"${stem}"*; do
+        # Skip the done dir itself and the timeout log
+        [ -d "$out" ] && continue
+        [ "$out" = "$CALL_DIR/$TIMEOUT_LOG" ] && continue
+        mv "$out" "$DONE_DIR/"
+        moved=$((moved + 1))
+    done
+
+    echo "✅ Success: $file (${elapsed}s) → moved $((moved)) output files to $DONE_DIR"
     echo "$(date '+%Y-%m-%d %H:%M:%S')  SUCCESS  $file  (${elapsed}s)" >> "$TIMEOUT_LOG"
 done
 

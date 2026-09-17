@@ -45,12 +45,12 @@ endif()
 # Paths
 # ==============================
 set(IMGUI_DIR "../tools/imgui")
-set(TRACEFIELD_DIR "../CurveSurfacingLib/TracingFieldLib/include")
-set(EIGENPATH "../CurveSurfacingLib/TracingFieldLib/external_lib/eigen-3.4.0")
-set(IGLLIB "../libigl/include")
-set(CURVE_SURFACING_CORE_DIR "${CMAKE_SOURCE_DIR}/../Refactor/CurveSurfacingLib-V2/Curve-Surfacing-Core")
+set(TRACEFIELD_DIR "../CurveSurfacingLib-V2/TracingFieldLib/include")
+set(EIGENPATH "../CurveSurfacingLib-V2/TracingFieldLib/external_lib/eigen-3.4.0")
+set(IGLLIB "../tools/libigl/include")
+set(CURVE_SURFACING_CORE_DIR "${CMAKE_SOURCE_DIR}/../CurveSurfacingLib-V2/Curve-Surfacing-Core")
 
-set(LUT_PATH "../../../include/Lut.txt")
+set(LUT_PATH "${CMAKE_SOURCE_DIR}/../CurveSurfacingLib-V2/TracingFieldLib/include/Lut.txt")
 add_definitions(-DLUT_PATH=\"${LUT_PATH}\")
 
 # ==============================
